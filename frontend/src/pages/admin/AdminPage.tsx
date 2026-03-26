@@ -3,9 +3,10 @@ import { PaperTypesTab } from './PaperTypesTab.tsx';
 import { HebdoTab } from './HebdoTab.tsx';
 import { JournalistsTab } from './JournalistsTab.tsx';
 import { DeliveriesTab } from './DeliveriesTab.tsx';
-import { FileText, Hash, Users, Send } from 'lucide-react';
+import { PromptTab } from './PromptTab.tsx';
+import { FileText, Hash, Users, Send, Bot } from 'lucide-react';
 
-type Tab = 'paper-types' | 'hebdo' | 'journalists' | 'deliveries';
+type Tab = 'paper-types' | 'hebdo' | 'journalists' | 'deliveries' | 'prompt';
 
 export function AdminPage() {
   const [tab, setTab] = useState<Tab>('paper-types');
@@ -15,6 +16,7 @@ export function AdminPage() {
     { key: 'hebdo', label: 'Hebdo', icon: <Hash size={18} /> },
     { key: 'journalists', label: 'Journalistes', icon: <Users size={18} /> },
     { key: 'deliveries', label: 'Livraisons', icon: <Send size={18} /> },
+    { key: 'prompt', label: 'Prompt IA', icon: <Bot size={18} /> },
   ];
 
   return (
@@ -44,6 +46,7 @@ export function AdminPage() {
       {tab === 'hebdo' && <HebdoTab />}
       {tab === 'journalists' && <JournalistsTab />}
       {tab === 'deliveries' && <DeliveriesTab />}
+      {tab === 'prompt' && <PromptTab />}
     </div>
   );
 }

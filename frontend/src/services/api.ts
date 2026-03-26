@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { supabase } from '../lib/supabase.ts';
-import type { PaperType, HebdoConfig, Delivery, CorrectionResult, Profile } from '../types/index.ts';
+import type { PaperType, HebdoConfig, Delivery, CorrectionResult, Profile, CorrectionPrompt } from '../types/index.ts';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -115,5 +115,16 @@ export async function adminUpdateJournalist(id: string, j: Partial<Profile>): Pr
 
 export async function adminGetDeliveries(): Promise<Delivery[]> {
   const { data } = await api.get('/api/admin/deliveries');
+  return data;
+}
+
+// ========== CORRECTION PROMPT ==========
+export async function adminGetPrompt(): Promise<CorrectionPrompt> {
+  const { data } = await api.get('/api/admin/prompt');
+  return data;
+}
+
+export async function adminUpdatePrompt(prompt_text: string): Promise<CorrectionPrompt> {
+  const { data } = await api.put('/api/admin/prompt', { prompt_text });
   return data;
 }

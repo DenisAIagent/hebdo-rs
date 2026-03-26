@@ -60,3 +60,10 @@ export interface CorrectionItem {
   type: string;
   explanation: string;
 }
+
+export interface CorrectionPrompt {
+  id: string;
+  prompt_text: string;
+  updated_at: string;
+  updated_by: string | null;
+}

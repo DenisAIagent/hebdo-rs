@@ -1,37 +1,33 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { supabaseAdmin } from '../utils/supabase';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-export interface CorrectionResult {
-  correctedText: string;
-  corrections: Array<{
-    original: string;
-    corrected: string;
-    type: 'orthographe' | 'grammaire' | 'ponctuation' | 'style' | 'typographie';
-    explanation: string;
-  }>;
-  signCount: number;
-}
-
-export async function correctText(text: string): Promise<CorrectionResult> {
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 8192,
-    messages: [
-      {
-        role: 'user',
-        content: `Tu es correcteur professionnel pour Rolling Stone France (magazine hebdomadaire).
+// Hardcoded fallback prompt in case DB is unavailable
+const FALLBACK_PROMPT = `Tu es correcteur professionnel pour Rolling Stone France (magazine hebdomadaire).
 
 Corrige le texte suivant en respectant ces regles :
+
+ORTHOGRAPHE & GRAMMAIRE :
 - Orthographe francaise impeccable
-- Grammaire et syntaxe
-- Ponctuation (guillemets francais, espaces insecables, tirets cadratins)
-- Typographie editoriale (majuscules noms propres, italiques titres d'oeuvres)
+- Grammaire et syntaxe correctes
+- Verification des noms propres (artistes, lieux, labels, producteurs) — corrige les erreurs d'orthographe sur les noms connus
+
+PONCTUATION & TYPOGRAPHIE :
+- Guillemets francais (\u00ab \u00bb) avec espaces insecables
+- Espaces insecables avant : ; ! ? et apres \u00ab
+- Tirets cadratins pour les incises
+
+CONVENTIONS EDITORIALES ROLLING STONE :
+- Noms d'albums en italique : <em>Nom de l'album</em>
+- Noms de singles/chansons entre guillemets : \u00ab Nom du single \u00bb
+- Citations en italique : <em>citation</em>
+- Noms propres avec majuscules correctes
 - Style journalistique Rolling Stone (dynamique, precis, pas de jargon inutile)
 
-IMPORTANT : Ne modifie PAS le sens ni le ton du texte. Corrige uniquement les erreurs.
+IMPORTANT : Ne modifie PAS le sens ni le ton du texte. Corrige uniquement les erreurs et applique le formatage editorial.
 
 Reponds UNIQUEMENT en JSON valide avec cette structure :
 {
@@ -46,7 +42,49 @@ Reponds UNIQUEMENT en JSON valide avec cette structure :
   ]
 }
 
-Si le texte est parfait, renvoie correctedText identique et corrections vide.
+Si le texte est parfait, renvoie correctedText identique et corrections vide.`;
+
+async function getPromptFromDB(): Promise<string> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('correction_prompt')
+      .select('prompt_text')
+      .limit(1)
+      .single();
+
+    if (error || !data?.prompt_text) {
+      console.warn('Failed to fetch prompt from DB, using fallback:', error?.message);
+      return FALLBACK_PROMPT;
+    }
+
+    return data.prompt_text;
+  } catch (e) {
+    console.warn('Error fetching prompt from DB, using fallback:', e);
+    return FALLBACK_PROMPT;
+  }
+}
+
+export interface CorrectionResult {
+  correctedText: string;
+  corrections: Array<{
+    original: string;
+    corrected: string;
+    type: 'orthographe' | 'grammaire' | 'ponctuation' | 'style' | 'typographie';
+    explanation: string;
+  }>;
+  signCount: number;
+}
+
+export async function correctText(text: string): Promise<CorrectionResult> {
+  const promptText = await getPromptFromDB();
+
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 8192,
+    messages: [
+      {
+        role: 'user',
+        content: `${promptText}
 
 Texte a corriger :
 ---

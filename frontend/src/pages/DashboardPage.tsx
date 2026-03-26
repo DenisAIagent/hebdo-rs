@@ -107,11 +107,19 @@ export function DashboardPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-50 rounded-lg">
-              <FileText size={20} className="text-blue-600" />
+              <Clock size={20} className="text-blue-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-rs-black">{deliveries.length}</p>
-              <p className="text-sm text-gray-500">Livraisons totales</p>
+              <p className="text-sm font-semibold text-rs-black truncate">
+                {filteredDeliveries.length > 0
+                  ? filteredDeliveries[0].title
+                  : 'Aucune'}
+              </p>
+              <p className="text-xs text-gray-500">
+                {filteredDeliveries.length > 0 && filteredDeliveries[0].delivered_at
+                  ? format(new Date(filteredDeliveries[0].delivered_at), "d MMM yyyy", { locale: fr })
+                  : 'Derniere livraison'}
+              </p>
             </div>
           </div>
         </div>

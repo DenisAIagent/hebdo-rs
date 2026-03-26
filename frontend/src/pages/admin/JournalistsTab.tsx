@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { adminGetJournalists, adminCreateJournalist, adminUpdateJournalist } from '../../services/api.ts';
 import type { Profile } from '../../types/index.ts';
 import { Plus, Save, X, AlertCircle, UserCheck, UserX } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export function JournalistsTab() {
   const [journalists, setJournalists] = useState<Profile[]>([]);
@@ -42,20 +43,24 @@ export function JournalistsTab() {
     setError('');
     try {
       await adminCreateJournalist({ email, full_name: fullName, password, role });
+      toast.success(`Compte cree pour ${fullName}`);
       resetForm();
       await load();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erreur creation';
       setError(msg);
+      toast.error(msg);
     }
   };
 
   const toggleActive = async (id: string, isActive: boolean) => {
     try {
       await adminUpdateJournalist(id, { is_active: !isActive } as Partial<Profile>);
+      toast.success(isActive ? 'Compte desactive' : 'Compte reactive');
       await load();
     } catch {
       setError('Erreur mise a jour');
+      toast.error('Erreur mise a jour');
     }
   };
 
@@ -63,9 +68,11 @@ export function JournalistsTab() {
     const newRole = currentRole === 'admin' ? 'journalist' : 'admin';
     try {
       await adminUpdateJournalist(id, { role: newRole } as Partial<Profile>);
+      toast.success(`Role change en ${newRole === 'admin' ? 'Admin' : 'Journaliste'}`);
       await load();
     } catch {
       setError('Erreur mise a jour');
+      toast.error('Erreur mise a jour');
     }
   };
 
@@ -134,6 +141,7 @@ export function JournalistsTab() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-rs-red focus:border-transparent"
                 placeholder="Min. 10 car., maj+min+chiffre"
               />
+              <p className="text-xs text-gray-400 mt-1">Min. 10 caracteres, 1 majuscule, 1 minuscule, 1 chiffre</p>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>

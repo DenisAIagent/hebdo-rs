@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './stores/authStore.ts';
 import { ProtectedRoute } from './components/ProtectedRoute.tsx';
 import { Layout } from './components/Layout.tsx';
@@ -27,6 +28,16 @@ export function App() {
   }
 
   return (
+    <>
+    <Toaster
+      position="top-right"
+      toastOptions={{
+        duration: 3000,
+        style: { borderRadius: '10px', background: '#1a1a1a', color: '#fff', fontSize: '14px' },
+        success: { iconTheme: { primary: '#16a34a', secondary: '#fff' } },
+        error: { iconTheme: { primary: '#e40000', secondary: '#fff' } },
+      }}
+    />
     <Routes>
       <Route
         path="/login"
@@ -64,5 +75,6 @@ export function App() {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }

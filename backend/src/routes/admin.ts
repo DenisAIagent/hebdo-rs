@@ -264,4 +264,60 @@ router.get('/deliveries', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// ========== CORRECTION PROMPT ==========
+
+// GET /api/admin/prompt - Get the current correction prompt
+router.get('/prompt', async (_req: AuthRequest, res: Response) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('correction_prompt')
+      .select('*')
+      .limit(1)
+      .single();
+
+    if (error) throw error;
+    return res.json(data);
+  } catch (error) {
+    console.error('Get prompt error:', error);
+    return res.status(500).json({ error: 'Erreur chargement prompt' });
+  }
+});
+
+// PUT /api/admin/prompt - Update the correction prompt
+router.put('/prompt', async (req: AuthRequest, res: Response) => {
+  const { prompt_text } = req.body;
+
+  if (!prompt_text || typeof prompt_text !== 'string' || prompt_text.trim().length < 50) {
+    return res.status(400).json({ error: 'Le prompt doit contenir au moins 50 caracteres' });
+  }
+
+  try {
+    // Get the single prompt row
+    const { data: existing, error: fetchError } = await supabaseAdmin
+      .from('correction_prompt')
+      .select('id')
+      .limit(1)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    const { data, error } = await supabaseAdmin
+      .from('correction_prompt')
+      .update({
+        prompt_text: prompt_text.trim(),
+        updated_at: new Date().toISOString(),
+        updated_by: req.userId || null,
+      })
+      .eq('id', existing.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.json(data);
+  } catch (error) {
+    console.error('Update prompt error:', error);
+    return res.status(500).json({ error: 'Erreur mise a jour prompt' });
+  }
+});
+
 export default router;

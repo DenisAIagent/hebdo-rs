@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { adminGetHebdos, adminCreateHebdo, adminSetCurrentHebdo } from '../../services/api.ts';
 import type { HebdoConfig } from '../../types/index.ts';
 import { Plus, Check, AlertCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -30,19 +31,23 @@ export function HebdoTab() {
     setError('');
     try {
       await adminCreateHebdo(parseInt(numero));
+      toast.success(`Hebdo ${numero} cree et active`);
       setNumero('');
       await load();
     } catch {
       setError('Erreur creation');
+      toast.error('Erreur creation');
     }
   };
 
   const handleSetCurrent = async (id: string) => {
     try {
       await adminSetCurrentHebdo(id);
+      toast.success('Numero actif mis a jour');
       await load();
     } catch {
       setError('Erreur changement');
+      toast.error('Erreur changement');
     }
   };
 

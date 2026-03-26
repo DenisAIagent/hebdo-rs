@@ -7,6 +7,7 @@ import {
 } from '../../services/api.ts';
 import type { PaperType } from '../../types/index.ts';
 import { Plus, Pencil, Trash2, Save, X, AlertCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export function PaperTypesTab() {
   const [types, setTypes] = useState<PaperType[]>([]);
@@ -72,10 +73,12 @@ export function PaperTypesTab() {
           sort_order: parseInt(sortOrder),
         });
       }
+      toast.success(editingId ? 'Type modifie' : 'Type cree');
       resetForm();
       await load();
     } catch {
       setError('Erreur sauvegarde');
+      toast.error('Erreur sauvegarde');
     }
   };
 
@@ -83,9 +86,11 @@ export function PaperTypesTab() {
     if (!confirm('Desactiver ce type de papier ?')) return;
     try {
       await adminDeletePaperType(id);
+      toast.success('Type desactive');
       await load();
     } catch {
       setError('Erreur suppression');
+      toast.error('Erreur suppression');
     }
   };
 

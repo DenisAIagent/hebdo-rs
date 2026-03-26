@@ -21,6 +21,7 @@ import {
   X,
   Send,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 type Step = 'type' | 'content' | 'correction' | 'review';
 
@@ -114,6 +115,7 @@ export function DeliveryFormPage() {
       setStep('correction');
     } catch (err) {
       console.error('Correction error:', err);
+      toast.error('Correction automatique indisponible — texte original conserve');
       // If correction fails, use original text
       setBodyCorrected(bodyOriginal);
       setStep('correction');
@@ -194,7 +196,7 @@ export function DeliveryFormPage() {
         </div>
         <h1 className="text-2xl font-bold text-rs-black mb-2">Papier livre !</h1>
         <p className="text-gray-500 mb-6">
-          Votre papier <strong>{title}</strong> a bien ete envoye dans Google Drive.
+          Votre papier <strong>{title}</strong> a bien ete envoye dans Dropbox.
           L'equipe a ete notifiee par email.
         </p>
         {driveUrl && (
@@ -205,7 +207,7 @@ export function DeliveryFormPage() {
             className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2.5 rounded-lg transition-colors mb-4"
           >
             <FileText size={18} />
-            Voir dans Google Drive
+            Voir dans Dropbox
           </a>
         )}
         <div>
