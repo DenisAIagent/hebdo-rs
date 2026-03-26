@@ -18,6 +18,11 @@ const app = express();
 const PORT = process.env.PORT || 3005;
 const isProd = process.env.NODE_ENV === 'production';
 
+// Trust Railway reverse proxy (required for rate-limit + real IP detection)
+if (isProd) {
+  app.set('trust proxy', 1);
+}
+
 // Security
 app.use(helmet({
   contentSecurityPolicy: isProd ? {
