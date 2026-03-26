@@ -12,6 +12,6 @@
     "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\""
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   }
 }
