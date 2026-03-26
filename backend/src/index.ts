@@ -53,8 +53,8 @@ app.use('/api/correct', authMiddleware, correctionRoutes);
 if (isProd) {
   const frontendDist = path.join(__dirname, '../../frontend/dist');
   app.use(express.static(frontendDist));
-  // SPA fallback: all non-API routes serve index.html
-  app.get('*', (_req, res) => {
+  // SPA fallback: all non-API routes serve index.html (Express 5 syntax)
+  app.get('/{*splat}', (_req, res) => {
     res.sendFile(path.join(frontendDist, 'index.html'));
   });
 }
