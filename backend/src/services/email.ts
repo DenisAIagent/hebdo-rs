@@ -1,5 +1,26 @@
 import nodemailer from 'nodemailer';
 
+/** Escape HTML special characters to prevent injection in email templates */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** Validate URL protocol (only http/https allowed) */
+function sanitizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return url;
+    return '#';
+  } catch {
+    return '#';
+  }
+}
+
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
   port: parseInt(process.env.SMTP_PORT || '587'),
@@ -30,6 +51,12 @@ export async function notifyDelivery(params: NotifyParams) {
     return;
   }
 
+  const safeJournalist = escapeHtml(params.journalistName);
+  const safePaperType = escapeHtml(params.paperType);
+  const safeTitle = escapeHtml(params.title);
+  const safeHebdo = escapeHtml(params.hebdoNumber);
+  const safeFolderUrl = sanitizeUrl(params.driveFolderUrl);
+
   const html = `
     <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto;">
       <div style="background: #E50914; color: white; padding: 20px; text-align: center;">
@@ -41,19 +68,19 @@ export async function notifyDelivery(params: NotifyParams) {
         <table style="width: 100%; border-collapse: collapse;">
           <tr>
             <td style="padding: 8px 0; font-weight: bold; color: #333; width: 140px;">Journaliste</td>
-            <td style="padding: 8px 0; color: #555;">${params.journalistName}</td>
+            <td style="padding: 8px 0; color: #555;">${safeJournalist}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; font-weight: bold; color: #333;">Type de papier</td>
-            <td style="padding: 8px 0; color: #555;">${params.paperType}</td>
+            <td style="padding: 8px 0; color: #555;">${safePaperType}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; font-weight: bold; color: #333;">Titre</td>
-            <td style="padding: 8px 0; color: #555;">${params.title}</td>
+            <td style="padding: 8px 0; color: #555;">${safeTitle}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; font-weight: bold; color: #333;">Hebdo</td>
-            <td style="padding: 8px 0; color: #555;">${params.hebdoNumber}</td>
+            <td style="padding: 8px 0; color: #555;">${safeHebdo}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; font-weight: bold; color: #333;">Signes</td>
@@ -62,10 +89,10 @@ export async function notifyDelivery(params: NotifyParams) {
         </table>
 
         <div style="margin-top: 24px; text-align: center;">
-          <a href="${params.driveFolderUrl}"
+          <a href="${safeFolderUrl}"
              style="display: inline-block; background: #E50914; color: white; padding: 12px 32px;
                     text-decoration: none; border-radius: 4px; font-weight: bold;">
-            Ouvrir dans Google Drive
+            Ouvrir dans Dropbox
           </a>
         </div>
       </div>
@@ -80,7 +107,7 @@ export async function notifyDelivery(params: NotifyParams) {
     await transporter.sendMail({
       from: `"RS Hebdo" <${process.env.SMTP_USER}>`,
       to: recipients,
-      subject: `[${params.hebdoNumber}] ${params.paperType} — ${params.title} (${params.journalistName})`,
+      subject: `[${safeHebdo}] ${safePaperType} — ${safeTitle} (${safeJournalist})`,
       html,
     });
     console.log(`Notification sent for: ${params.title}`);

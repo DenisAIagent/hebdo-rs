@@ -128,9 +128,11 @@ export function JournalistsTab() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={6}
+                minLength={10}
+                pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{10,}"
+                title="Min. 10 caracteres, 1 majuscule, 1 minuscule, 1 chiffre"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-rs-red focus:border-transparent"
-                placeholder="Min. 6 caracteres"
+                placeholder="Min. 10 car., maj+min+chiffre"
               />
             </div>
             <div>

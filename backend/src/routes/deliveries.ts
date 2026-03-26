@@ -76,7 +76,7 @@ router.post('/ensure-hebdo', async (req: AuthRequest, res: Response) => {
     const { numero } = req.body;
     const num = parseInt(numero, 10);
 
-    if (!num || num < 1 || num > 9999) {
+    if (isNaN(num) || num < 1 || num > 9999) {
       return res.status(400).json({ error: 'Numero invalide (entre 1 et 9999)' });
     }
 

@@ -17,8 +17,7 @@ export function LoginPage() {
       await login(email, password);
       navigate('/');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erreur de connexion';
-      setError(msg);
+      setError('Email ou mot de passe incorrect');
     }
   };
 

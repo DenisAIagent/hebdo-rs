@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import path from 'path';
 import { authMiddleware } from './middleware/auth';
@@ -19,12 +20,30 @@ const isProd = process.env.NODE_ENV === 'production';
 
 // Security
 app.use(helmet({
-  contentSecurityPolicy: isProd ? false : undefined,
+  contentSecurityPolicy: isProd ? {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://*.supabase.co"],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+    },
+  } : undefined,
 }));
+const allowedOrigins = isProd
+  ? [process.env.FRONTEND_URL].filter(Boolean) as string[]
+  : [process.env.FRONTEND_URL || 'http://localhost:5173'];
 app.use(cors({
-  origin: isProd
-    ? (process.env.FRONTEND_URL || true)
-    : (process.env.FRONTEND_URL || 'http://localhost:5173'),
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS not allowed'));
+    }
+  },
   credentials: true,
 }));
 app.use(express.json({ limit: '50mb' }));
@@ -61,8 +80,9 @@ if (isProd) {
 
 // Error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Server error:', err);
-  res.status(500).json({ error: 'Internal server error' });
+  const errorId = crypto.randomUUID();
+  console.error(`Server error [${errorId}]:`, isProd ? err.message : err);
+  res.status(500).json({ error: 'Internal server error', reference: errorId });
 });
 
 app.listen(PORT, () => {

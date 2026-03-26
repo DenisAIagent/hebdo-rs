@@ -7,6 +7,16 @@ import { Send, FileText, Clock, ExternalLink, FolderOpen, ChevronDown } from 'lu
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
+/** Only allow http/https URLs to prevent javascript: injection */
+function isSafeUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export function DashboardPage() {
   const { user } = useAuthStore();
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
@@ -166,18 +176,18 @@ export function DashboardPage() {
                   }`}>
                     {d.status === 'delivered' ? 'Livre' : d.status === 'corrected' ? 'Corrige' : 'Brouillon'}
                   </span>
-                  {d.drive_folder_url && (
+                  {d.drive_folder_url && isSafeUrl(d.drive_folder_url) && (
                     <a
                       href={d.drive_folder_url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-1.5 text-gray-400 hover:text-rs-red transition-colors"
-                      title="Voir dans Drive"
+                      title="Voir dans Dropbox"
                     >
                       <FolderOpen size={16} />
                     </a>
                   )}
-                  {d.digital_link && (
+                  {d.digital_link && isSafeUrl(d.digital_link) && (
                     <a
                       href={d.digital_link}
                       target="_blank"
