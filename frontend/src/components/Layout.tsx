@@ -1,6 +1,13 @@
+import { useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore.ts';
 import { FileText, LayoutDashboard, Settings, LogOut, Send } from 'lucide-react';
+
+declare global {
+  interface Window {
+    $crisp: any[];
+  }
+}
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuthStore();
@@ -11,6 +18,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
     await logout();
     navigate('/login');
   };
+
+  // Push user info to Crisp chat widget
+  useEffect(() => {
+    if (user && window.$crisp) {
+      window.$crisp.push(['set', 'user:email', [user.email]]);
+      window.$crisp.push(['set', 'user:nickname', [user.full_name]]);
+    }
+  }, [user]);
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
 
