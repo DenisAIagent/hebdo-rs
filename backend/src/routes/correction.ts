@@ -1,11 +1,22 @@
 import { Router, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import { AuthRequest } from '../middleware/auth';
 import { correctText } from '../services/claude';
 
 const router = Router();
 
+// Dedicated rate limit for Claude API corrections (expensive)
+const correctionLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,  // 1 hour window
+  max: 30,                     // 30 corrections per hour per user
+  keyGenerator: (req: AuthRequest) => req.userId || req.ip || 'unknown',
+  message: { error: 'Trop de corrections demandees. Reessayez dans quelques minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // POST /api/correct - Correct text with Claude
-router.post('/', async (req: AuthRequest, res: Response) => {
+router.post('/', correctionLimiter, async (req: AuthRequest, res: Response) => {
   const { text } = req.body;
 
   if (!text || typeof text !== 'string') {

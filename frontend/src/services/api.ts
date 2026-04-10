@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { supabase } from '../lib/supabase.ts';
-import type { PaperType, HebdoConfig, Delivery, CorrectionResult, Profile, CorrectionPrompt } from '../types/index.ts';
+import type { PaperType, HebdoConfig, Delivery, CorrectionResult, Profile, CorrectionPrompt, DeliveryLog, AppSetting } from '../types/index.ts';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -16,6 +16,16 @@ api.interceptors.request.use(async (config) => {
   }
   return config;
 });
+
+// ========== SETUP (public, no auth) ==========
+export async function getSetupStatus(): Promise<{ configured: boolean }> {
+  const { data } = await api.get('/api/setup/status');
+  return data;
+}
+
+export async function postSetupConfigure(settings: { key: string; value: string }[]): Promise<void> {
+  await api.post('/api/setup/configure', { settings });
+}
 
 // ========== AUTH ==========
 export async function getProfile(): Promise<Profile> {
@@ -34,13 +44,13 @@ export async function getCurrentHebdo(): Promise<HebdoConfig | null> {
   return data;
 }
 
-export async function getAllHebdos(): Promise<HebdoConfig[]> {
+export async function getNextHebdo(): Promise<HebdoConfig | null> {
   const { data } = await api.get('/api/deliveries/hebdos');
   return data;
 }
 
-export async function ensureHebdo(numero: number): Promise<HebdoConfig> {
-  const { data } = await api.post('/api/deliveries/ensure-hebdo', { numero });
+export async function prepareHebdo(hebdoId: string): Promise<{ message: string; folderUrl?: string }> {
+  const { data } = await api.post('/api/deliveries/prepare-hebdo', { hebdo_id: hebdoId }, { timeout: 60000 });
   return data;
 }
 
@@ -51,6 +61,19 @@ export async function getActivePaperTypes(): Promise<PaperType[]> {
 
 export async function submitDelivery(formData: FormData): Promise<{ delivery: Delivery; drive: { folderUrl: string }; message: string }> {
   const { data } = await api.post('/api/deliveries', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120000,
+  });
+  return data;
+}
+
+export async function getDelivery(id: string): Promise<Delivery> {
+  const { data } = await api.get(`/api/deliveries/${id}`);
+  return data;
+}
+
+export async function updateDelivery(id: string, formData: FormData): Promise<{ delivery: Delivery; drive: { folderUrl: string }; message: string }> {
+  const { data } = await api.put(`/api/deliveries/${id}`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 120000,
   });
@@ -88,13 +111,25 @@ export async function adminGetHebdos(): Promise<HebdoConfig[]> {
   return data;
 }
 
-export async function adminCreateHebdo(numero: number): Promise<HebdoConfig> {
-  const { data } = await api.post('/api/admin/hebdo', { numero });
+export async function adminCreateHebdo(numero: number, start_date?: string, end_date?: string): Promise<HebdoConfig> {
+  const { data } = await api.post('/api/admin/hebdo', { numero, start_date, end_date });
   return data;
 }
 
 export async function adminSetCurrentHebdo(id: string): Promise<HebdoConfig> {
   const { data } = await api.put(`/api/admin/hebdo/${id}/set-current`);
+  return data;
+}
+
+export interface HebdoStatusItem {
+  paper_type_id: string;
+  name: string;
+  count: number;
+  deliveries: { title: string; author: string; status: string }[];
+}
+
+export async function adminGetHebdoStatus(hebdoId: string): Promise<HebdoStatusItem[]> {
+  const { data } = await api.get(`/api/admin/hebdo/${hebdoId}/status`);
   return data;
 }
 
@@ -118,6 +153,27 @@ export async function adminGetDeliveries(): Promise<Delivery[]> {
   return data;
 }
 
+export async function adminGetDelivery(id: string): Promise<Delivery> {
+  const { data } = await api.get(`/api/admin/deliveries/${id}`);
+  return data;
+}
+
+export async function adminUpdateDelivery(id: string, metadata: Record<string, any>, title: string): Promise<{ delivery: Delivery; message: string }> {
+  const { data } = await api.put(`/api/admin/deliveries/${id}`, { title, metadata: JSON.stringify(metadata) });
+  return data;
+}
+
+export async function adminDeleteDelivery(id: string): Promise<void> {
+  await api.delete(`/api/admin/deliveries/${id}`);
+}
+
+// ========== DELIVERY LOGS ==========
+export async function adminGetLogs(level?: string): Promise<DeliveryLog[]> {
+  const params = level ? `?level=${level}` : '';
+  const { data } = await api.get(`/api/admin/logs${params}`);
+  return data;
+}
+
 // ========== CORRECTION PROMPT ==========
 export async function adminGetPrompt(): Promise<CorrectionPrompt> {
   const { data } = await api.get('/api/admin/prompt');
@@ -126,5 +182,16 @@ export async function adminGetPrompt(): Promise<CorrectionPrompt> {
 
 export async function adminUpdatePrompt(prompt_text: string): Promise<CorrectionPrompt> {
   const { data } = await api.put('/api/admin/prompt', { prompt_text });
+  return data;
+}
+
+// ========== SETTINGS ==========
+export async function adminGetSettings(): Promise<AppSetting[]> {
+  const { data } = await api.get('/api/admin/settings');
+  return data;
+}
+
+export async function adminUpdateSettings(settings: { key: string; value: string }[]): Promise<AppSetting[]> {
+  const { data } = await api.put('/api/admin/settings', { settings });
   return data;
 }

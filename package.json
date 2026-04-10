@@ -1,12 +1,12 @@
 {
   "name": "rs-hebdo-delivery",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "RS Hebdo Delivery Platform - Rolling Stone France",
   "scripts": {
-    "postinstall": "cd backend && npm install && cd ../frontend && npm install",
-    "build:frontend": "cd frontend && npm run build",
-    "build:backend": "cd backend && npm run build",
+    "postinstall": "cd backend && npm ci && cd ../frontend && npm ci",
+    "build:frontend": "cd frontend && rm -rf dist node_modules/.vite && npm run build",
+    "build:backend": "cd backend && rm -rf dist && npm run build",
     "build": "npm run build:frontend && npm run build:backend",
     "start": "cd backend && NODE_ENV=production node dist/index.js",
     "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\""

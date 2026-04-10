@@ -18,6 +18,7 @@ CREATE TABLE paper_types (
   name TEXT NOT NULL,
   sign_limit INTEGER NOT NULL DEFAULT 2500,
   drive_folder_name TEXT NOT NULL,
+  fields_config JSONB DEFAULT '[]',
   is_active BOOLEAN NOT NULL DEFAULT true,
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -29,6 +30,8 @@ CREATE TABLE hebdo_config (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   numero INTEGER NOT NULL,
   label TEXT NOT NULL,
+  start_date DATE,
+  end_date DATE,
   is_current BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -45,6 +48,7 @@ CREATE TABLE deliveries (
   body_corrected TEXT NOT NULL,
   digital_link TEXT,
   image_filename TEXT NOT NULL,
+  metadata JSONB DEFAULT '{}',
   drive_folder_url TEXT,
   status TEXT NOT NULL DEFAULT 'delivered' CHECK (status IN ('draft', 'corrected', 'delivered')),
   sign_count INTEGER NOT NULL DEFAULT 0,
@@ -121,20 +125,134 @@ CREATE POLICY "Admins can read all deliveries"
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
   );
 
+-- 5. Delivery Logs (error tracking for admin)
+CREATE TABLE delivery_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  level TEXT NOT NULL DEFAULT 'info' CHECK (level IN ('info', 'warn', 'error')),
+  step TEXT NOT NULL,
+  message TEXT NOT NULL,
+  detail TEXT,
+  journalist_id UUID REFERENCES profiles(id),
+  journalist_name TEXT,
+  hebdo_label TEXT,
+  paper_type_name TEXT,
+  title TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE delivery_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins can read all logs"
+  ON delivery_logs FOR SELECT
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- Auto-delete logs older than 90 days (run via Supabase cron or manual cleanup)
+-- DELETE FROM delivery_logs WHERE created_at < now() - interval '90 days';
+
 -- ================================================
 -- SEED DATA: Default paper types
 -- ================================================
 
-INSERT INTO paper_types (name, sign_limit, drive_folder_name, sort_order) VALUES
-  ('Rolling Stone Interview', 15000, 'Rolling Stone Interview', 1),
-  ('Interview', 5000, 'Interview', 2),
-  ('Chronique Cinema', 1500, 'Chronique cinema', 3),
-  ('Chronique Coup de Coeur', 2500, 'Chronique coup de coeur', 4),
-  ('Chroniques Musique', 1500, 'Chroniques Musique', 5),
-  ('Disque de la Semaine', 2500, 'Disque de la semaine', 6),
-  ('Frenchie', 2500, 'frenchie', 7),
-  ('Livres et Expo', 1500, 'Livres et expo', 8);
+INSERT INTO paper_types (name, sign_limit, drive_folder_name, fields_config, sort_order) VALUES
+  ('Sujet de couv', 15000, 'Sujet de couv', '[
+    {"key": "artiste", "label": "Artiste", "type": "text", "required": true},
+    {"key": "accroche", "label": "Accroche", "type": "text", "required": true},
+    {"key": "credits", "label": "Crédits", "type": "text", "required": false},
+    {"key": "chapo", "label": "Chapo", "type": "textarea", "required": false},
+    {"key": "corps", "label": "Corps du texte", "type": "textarea", "required": true},
+    {"key": "lien_photos", "label": "Lien Drive photos", "type": "url", "required": true, "alternateKey": "photos"},
+    {"key": "photos", "label": "Photos (3 minimum)", "type": "images", "required": true, "min": 3, "alternateKey": "lien_photos"}
+  ]'::jsonb, 1),
+
+  ('Interview 3000', 3000, 'Interview 3000', '[
+    {"key": "artiste", "label": "Artiste", "type": "text", "required": true},
+    {"key": "accroche", "label": "Accroche", "type": "text", "required": true},
+    {"key": "credits", "label": "Crédits", "type": "text", "required": false},
+    {"key": "chapo", "label": "Chapo", "type": "textarea", "required": false},
+    {"key": "corps", "label": "Corps du texte", "type": "textarea", "required": true},
+    {"key": "photos", "label": "3 photos minimum ou lien drive", "type": "images", "required": true, "min": 3}
+  ]'::jsonb, 2),
+
+  ('Disque de la semaine', 2500, 'Disque de la semaine', '[
+    {"key": "artiste", "label": "Nom de l''artiste", "type": "text", "required": true},
+    {"key": "album", "label": "Nom de l''album", "type": "text", "required": true},
+    {"key": "accroche", "label": "Accroche - pourquoi faut-il écouter l''album?", "type": "text", "required": true},
+    {"key": "corps", "label": "Corps du texte", "type": "textarea", "required": true},
+    {"key": "lien", "label": "Lien", "type": "url", "required": false}
+  ]'::jsonb, 3),
+
+  ('Chroniques', 1500, 'Chroniques', '[
+    {"key": "artiste", "label": "Nom de l''artiste", "type": "text", "required": true},
+    {"key": "album", "label": "Nom de l''album", "type": "text", "required": true},
+    {"key": "etoiles", "label": "Nombre d''etoiles (sur 5)", "type": "stars", "required": true, "max": 5},
+    {"key": "corps", "label": "Corps du texte", "type": "textarea", "required": true},
+    {"key": "lien", "label": "Lien", "type": "url", "required": false}
+  ]'::jsonb, 4),
+
+  ('Chronique Cinema', 1500, 'Chronique cinema', '[
+    {"key": "artiste", "label": "Nom du film", "type": "text", "required": true},
+    {"key": "album", "label": "Nom du realisateur", "type": "text", "required": true},
+    {"key": "etoiles", "label": "Nombre d''etoiles (sur 5)", "type": "stars", "required": true, "max": 5},
+    {"key": "corps", "label": "Corps du texte", "type": "textarea", "required": true},
+    {"key": "lien", "label": "Lien", "type": "url", "required": false}
+  ]'::jsonb, 5),
+
+  ('Chronique Coup de Coeur', 2500, 'Chronique coup de coeur', '[
+    {"key": "artiste", "label": "Artiste", "type": "text", "required": true},
+    {"key": "album", "label": "Album", "type": "text", "required": true},
+    {"key": "etoiles", "label": "Nombre d''etoiles (sur 5)", "type": "stars", "required": true, "max": 5},
+    {"key": "accroche", "label": "Accroche", "type": "text", "required": true},
+    {"key": "corps", "label": "Corps du texte", "type": "textarea", "required": true},
+    {"key": "lien", "label": "Lien", "type": "url", "required": false}
+  ]'::jsonb, 6),
+
+  ('Frenchie', 2500, 'frenchie', '[
+    {"key": "artiste", "label": "Artiste", "type": "text", "required": true},
+    {"key": "album", "label": "Album", "type": "text", "required": true},
+    {"key": "accroche", "label": "Accroche", "type": "text", "required": true},
+    {"key": "corps", "label": "Corps du texte", "type": "textarea", "required": true},
+    {"key": "lien", "label": "Lien", "type": "url", "required": false}
+  ]'::jsonb, 7),
+
+  ('Livres et Expo', 1500, 'Livres et expo', '[
+    {"key": "artiste", "label": "Titre", "type": "text", "required": true},
+    {"key": "album", "label": "Auteur / Commissaire", "type": "text", "required": true},
+    {"key": "corps", "label": "Corps du texte", "type": "textarea", "required": true},
+    {"key": "lien", "label": "Lien", "type": "url", "required": false}
+  ]'::jsonb, 8);
+
+-- 6. App Settings (API keys, config managed by admins)
+CREATE TABLE app_settings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  key TEXT NOT NULL UNIQUE,
+  value TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_by UUID REFERENCES profiles(id)
+);
+
+ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins can read all settings"
+  ON app_settings FOR SELECT
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+CREATE POLICY "Admins can manage settings"
+  ON app_settings FOR ALL
+  USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- Seed default settings keys
+INSERT INTO app_settings (key, value) VALUES
+  ('ANTHROPIC_API_KEY', ''),
+  ('DROPBOX_APP_KEY', ''),
+  ('DROPBOX_APP_SECRET', ''),
+  ('DROPBOX_REFRESH_TOKEN', '');
 
 -- First hebdo (adjust number as needed)
-INSERT INTO hebdo_config (numero, label, is_current) VALUES
-  (226, 'RSH226', true);
+INSERT INTO hebdo_config (numero, label, start_date, end_date, is_current) VALUES
+  (226, 'RSH226', '2026-03-25', '2026-03-29', true);

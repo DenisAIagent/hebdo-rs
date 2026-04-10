@@ -12,6 +12,7 @@ import deliveryRoutes from './routes/deliveries';
 import adminRoutes from './routes/admin';
 import correctionRoutes from './routes/correction';
 import setupRoutes from './routes/setup';
+import { startHebdoRotation } from './services/hebdoRotation';
 
 dotenv.config();
 
@@ -52,7 +53,7 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '1mb' }));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -75,12 +76,22 @@ app.use('/api/deliveries', authMiddleware, deliveryRoutes);
 app.use('/api/admin', authMiddleware, adminMiddleware, adminRoutes);
 app.use('/api/correct', authMiddleware, correctionRoutes);
 
+// Block search engine indexing (but allow social media crawlers for OG previews)
+app.use((req, res, next) => {
+  const ua = req.headers['user-agent'] || '';
+  const isSocialBot = /facebookexternalhit|Twitterbot|WhatsApp|Slackbot|LinkedInBot/i.test(ua);
+  if (!isSocialBot) {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  }
+  next();
+});
+
 // ── Serve frontend in production ─────────────────────────────
 if (isProd) {
   const frontendDist = path.join(__dirname, '../../frontend/dist');
   app.use(express.static(frontendDist, {
-    maxAge: '1d',
-    immutable: true,
+    maxAge: 0,
+    etag: true,
   }));
   // SPA fallback: only for non-API, non-asset routes
   app.get('/{*splat}', (req, res) => {
@@ -101,11 +112,12 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 const server = app.listen(PORT, () => {
   console.log(`RS Hebdo Delivery API running on port ${PORT} (${isProd ? 'production' : 'development'})`);
+  startHebdoRotation();
 });
 
-// Allow long uploads + Dropbox transfers (5 min timeout)
-server.timeout = 300_000;
-server.keepAliveTimeout = 300_000;
-server.headersTimeout = 310_000;
+// Default short timeout (30s) — upload routes extend per-request
+server.timeout = 30_000;
+server.keepAliveTimeout = 30_000;
+server.headersTimeout = 35_000;
 
 export default app;

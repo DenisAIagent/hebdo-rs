@@ -27,6 +27,11 @@ router.get('/profile', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Profil introuvable' });
     }
 
+    // Block deactivated accounts
+    if (!profile.is_active) {
+      return res.status(403).json({ error: 'Compte desactive' });
+    }
+
     return res.json({ user: { ...profile, email: user.email } });
   } catch {
     return res.status(500).json({ error: 'Erreur serveur' });

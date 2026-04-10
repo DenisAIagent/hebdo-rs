@@ -4,6 +4,18 @@ import { supabaseAdmin } from '../utils/supabase';
 
 const router = Router();
 
+/** Strip HTML tags safely */
+function stripHtml(str: string): string {
+  return str
+    .replace(/<[^>]*>?/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
 // ========== PAPER TYPES ==========
 
 // GET /api/admin/paper-types - List all paper types (including inactive)
@@ -21,7 +33,7 @@ router.get('/paper-types', async (_req: AuthRequest, res: Response) => {
 
 // POST /api/admin/paper-types - Create a paper type
 router.post('/paper-types', async (req: AuthRequest, res: Response) => {
-  const { name, sign_limit, drive_folder_name, sort_order } = req.body;
+  const { name, sign_limit, drive_folder_name, fields_config, sort_order } = req.body;
 
   if (!name || !sign_limit || !drive_folder_name) {
     return res.status(400).json({ error: 'Nom, limite signes et nom dossier Drive requis' });
@@ -34,6 +46,7 @@ router.post('/paper-types', async (req: AuthRequest, res: Response) => {
         name,
         sign_limit: parseInt(sign_limit),
         drive_folder_name,
+        fields_config: fields_config || [],
         sort_order: sort_order || 0,
         is_active: true,
       })
@@ -51,13 +64,14 @@ router.post('/paper-types', async (req: AuthRequest, res: Response) => {
 // PUT /api/admin/paper-types/:id - Update a paper type
 router.put('/paper-types/:id', async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
-  const { name, sign_limit, drive_folder_name, is_active, sort_order } = req.body;
+  const { name, sign_limit, drive_folder_name, fields_config, is_active, sort_order } = req.body;
 
   try {
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (name !== undefined) updates.name = name;
     if (sign_limit !== undefined) updates.sign_limit = parseInt(sign_limit);
     if (drive_folder_name !== undefined) updates.drive_folder_name = drive_folder_name;
+    if (fields_config !== undefined) updates.fields_config = fields_config;
     if (is_active !== undefined) updates.is_active = is_active;
     if (sort_order !== undefined) updates.sort_order = sort_order;
 
@@ -110,7 +124,7 @@ router.get('/hebdo', async (_req: AuthRequest, res: Response) => {
 
 // POST /api/admin/hebdo - Create and set current hebdo
 router.post('/hebdo', async (req: AuthRequest, res: Response) => {
-  const { numero } = req.body;
+  const { numero, start_date, end_date } = req.body;
   if (!numero) {
     return res.status(400).json({ error: 'Numero requis' });
   }
@@ -128,6 +142,8 @@ router.post('/hebdo', async (req: AuthRequest, res: Response) => {
       .insert({
         numero: parseInt(numero),
         label: `RSH${numero}`,
+        start_date: start_date || null,
+        end_date: end_date || null,
         is_current: true,
       })
       .select()
@@ -164,6 +180,44 @@ router.put('/hebdo/:id/set-current', async (req: AuthRequest, res: Response) => 
   }
 });
 
+// GET /api/admin/hebdo/:id/status - Get completion status per paper type for a hebdo
+router.get('/hebdo/:id/status', async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  try {
+    // Get all active paper types
+    const { data: paperTypes } = await supabaseAdmin
+      .from('paper_types')
+      .select('id, name, sort_order')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true });
+
+    // Get all deliveries for this hebdo
+    const { data: deliveries } = await supabaseAdmin
+      .from('deliveries')
+      .select('paper_type_id, title, author:profiles(full_name), status')
+      .eq('hebdo_id', id);
+
+    const status = (paperTypes || []).map((pt) => {
+      const ptDeliveries = (deliveries || []).filter((d: any) => d.paper_type_id === pt.id);
+      return {
+        paper_type_id: pt.id,
+        name: pt.name,
+        count: ptDeliveries.length,
+        deliveries: ptDeliveries.map((d: any) => ({
+          title: d.title,
+          author: d.author?.full_name || 'N/A',
+          status: d.status,
+        })),
+      };
+    });
+
+    return res.json(status);
+  } catch (error) {
+    console.error('Hebdo status error:', error);
+    return res.status(500).json({ error: 'Erreur chargement statut' });
+  }
+});
+
 // ========== JOURNALISTS ==========
 
 // GET /api/admin/journalists - List all journalists
@@ -187,6 +241,17 @@ router.post('/journalists', async (req: AuthRequest, res: Response) => {
     return res.status(400).json({ error: 'Email, nom complet et mot de passe requis' });
   }
 
+  // Password complexity check
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caracteres' });
+  }
+
+  // Role validation
+  const validRole = role || 'journalist';
+  if (!['journalist', 'admin'].includes(validRole)) {
+    return res.status(400).json({ error: 'Role invalide (journalist ou admin)' });
+  }
+
   try {
     // Create auth user
     const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -204,7 +269,7 @@ router.post('/journalists', async (req: AuthRequest, res: Response) => {
         id: authUser.user.id,
         email,
         full_name,
-        role: role || 'journalist',
+        role: validRole,
         is_active: true,
       })
       .select()
@@ -214,7 +279,7 @@ router.post('/journalists', async (req: AuthRequest, res: Response) => {
     return res.status(201).json(profile);
   } catch (error: any) {
     console.error('Create journalist error:', error);
-    return res.status(500).json({ error: error?.message || 'Erreur creation compte' });
+    return res.status(500).json({ error: 'Erreur creation compte' });
   }
 });
 
@@ -226,8 +291,46 @@ router.put('/journalists/:id', async (req: AuthRequest, res: Response) => {
   try {
     const updates: Record<string, unknown> = {};
     if (full_name !== undefined) updates.full_name = full_name;
-    if (role !== undefined) updates.role = role;
-    if (is_active !== undefined) updates.is_active = is_active;
+
+    if (role !== undefined) {
+      if (!['journalist', 'admin'].includes(role)) {
+        return res.status(400).json({ error: 'Role invalide (journalist ou admin)' });
+      }
+      // Prevent removing the last admin
+      if (role !== 'admin') {
+        const { count } = await supabaseAdmin
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('role', 'admin')
+          .eq('is_active', true);
+        if (count !== null && count <= 1) {
+          // Check if target is currently admin
+          const { data: target } = await supabaseAdmin.from('profiles').select('role').eq('id', id).single();
+          if (target?.role === 'admin') {
+            return res.status(400).json({ error: 'Impossible de retirer le dernier admin' });
+          }
+        }
+      }
+      updates.role = role;
+    }
+
+    if (is_active !== undefined) {
+      // Prevent deactivating the last admin
+      if (is_active === false) {
+        const { data: target } = await supabaseAdmin.from('profiles').select('role').eq('id', id).single();
+        if (target?.role === 'admin') {
+          const { count } = await supabaseAdmin
+            .from('profiles')
+            .select('*', { count: 'exact', head: true })
+            .eq('role', 'admin')
+            .eq('is_active', true);
+          if (count !== null && count <= 1) {
+            return res.status(400).json({ error: 'Impossible de desactiver le dernier admin' });
+          }
+        }
+      }
+      updates.is_active = is_active;
+    }
 
     const { data, error } = await supabaseAdmin
       .from('profiles')
@@ -261,6 +364,153 @@ router.get('/deliveries', async (req: AuthRequest, res: Response) => {
     return res.json(data || []);
   } catch {
     return res.status(500).json({ error: 'Erreur chargement' });
+  }
+});
+
+// GET /api/admin/deliveries/:id - Get a single delivery (admin, no ownership check)
+router.get('/deliveries/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { data, error } = await supabaseAdmin
+      .from('deliveries')
+      .select(`
+        *,
+        paper_type:paper_types(*),
+        hebdo:hebdo_config(numero, label)
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error || !data) {
+      return res.status(404).json({ error: 'Livraison introuvable' });
+    }
+    return res.json(data);
+  } catch (error) {
+    console.error('Admin get delivery error:', error);
+    return res.status(500).json({ error: 'Erreur chargement livraison' });
+  }
+});
+
+// PUT /api/admin/deliveries/:id - Update a delivery (admin, no ownership check)
+router.put('/deliveries/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { title, metadata: metadataRaw } = req.body;
+
+    // Get existing delivery with paper_type and hebdo
+    const { data: existing, error: fetchErr } = await supabaseAdmin
+      .from('deliveries')
+      .select('*, paper_type:paper_types(*), hebdo:hebdo_config(numero, label)')
+      .eq('id', id)
+      .single();
+
+    if (fetchErr || !existing) {
+      return res.status(404).json({ error: 'Livraison introuvable' });
+    }
+
+    const paperType = existing.paper_type;
+
+    // Parse metadata
+    let parsedMetadata: Record<string, any> = {};
+    try {
+      parsedMetadata = metadataRaw ? JSON.parse(metadataRaw) : existing.metadata || {};
+    } catch {
+      parsedMetadata = existing.metadata || {};
+    }
+
+    // Strip HTML from all string metadata values
+    for (const key of Object.keys(parsedMetadata)) {
+      if (typeof parsedMetadata[key] === 'string') {
+        parsedMetadata[key] = stripHtml(parsedMetadata[key]);
+      }
+    }
+
+    const updatedTitle = title || existing.title;
+    const bodyField = paperType.fields_config?.find((f: any) => f.key === 'corps');
+    const bodyText = bodyField ? parsedMetadata[bodyField.key] || '' : '';
+    const signCount = bodyText.length;
+    const subject = parsedMetadata.artiste || parsedMetadata.album || '';
+    const digitalLink = parsedMetadata.lien || '';
+
+    const { data: updated, error: updateErr } = await supabaseAdmin
+      .from('deliveries')
+      .update({
+        title: updatedTitle,
+        subject: subject || null,
+        body_original: bodyText,
+        body_corrected: bodyText,
+        digital_link: digitalLink || null,
+        metadata: parsedMetadata,
+        sign_count: signCount,
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateErr) throw updateErr;
+    return res.json({ delivery: updated, message: 'Livraison modifiee par admin' });
+  } catch (error) {
+    console.error('Admin update delivery error:', error);
+    return res.status(500).json({ error: 'Erreur modification' });
+  }
+});
+
+// DELETE /api/admin/deliveries/:id - Delete a delivery
+router.delete('/deliveries/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { error } = await supabaseAdmin
+      .from('deliveries')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    return res.json({ message: 'Livraison supprimee' });
+  } catch {
+    return res.status(500).json({ error: 'Erreur suppression' });
+  }
+});
+
+// ========== DELIVERY LOGS ==========
+
+// GET /api/admin/logs - List recent delivery logs
+router.get('/logs', async (req: AuthRequest, res: Response) => {
+  try {
+    const level = req.query.level as string | undefined;    // 'error', 'warn', 'info'
+    const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
+
+    let query = supabaseAdmin
+      .from('delivery_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (level && ['info', 'warn', 'error'].includes(level)) {
+      query = query.eq('level', level);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return res.json(data || []);
+  } catch (error) {
+    console.error('Get logs error:', error);
+    return res.status(500).json({ error: 'Erreur chargement logs' });
+  }
+});
+
+// DELETE /api/admin/logs - Clear old logs (older than 30 days)
+router.delete('/logs', async (_req: AuthRequest, res: Response) => {
+  try {
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { error } = await supabaseAdmin
+      .from('delivery_logs')
+      .delete()
+      .lt('created_at', cutoff);
+
+    if (error) throw error;
+    return res.json({ message: 'Logs de plus de 30 jours supprimes' });
+  } catch {
+    return res.status(500).json({ error: 'Erreur nettoyage logs' });
   }
 });
 
@@ -317,6 +567,83 @@ router.put('/prompt', async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Update prompt error:', error);
     return res.status(500).json({ error: 'Erreur mise a jour prompt' });
+  }
+});
+
+// ========== APP SETTINGS ==========
+
+// GET /api/admin/settings - List all settings (values masked)
+router.get('/settings', async (_req: AuthRequest, res: Response) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('app_settings')
+      .select('*')
+      .order('key', { ascending: true });
+
+    if (error) throw error;
+
+    // Mask values: show only last 4 characters
+    const masked = (data || []).map((s: any) => ({
+      ...s,
+      value: s.value
+        ? s.value.length > 4
+          ? '\u2022'.repeat(8) + s.value.slice(-4)
+          : '\u2022'.repeat(8)
+        : '',
+    }));
+
+    return res.json(masked);
+  } catch (error) {
+    console.error('Get settings error:', error);
+    return res.status(500).json({ error: 'Erreur chargement settings' });
+  }
+});
+
+// PUT /api/admin/settings - Update one or more settings
+router.put('/settings', async (req: AuthRequest, res: Response) => {
+  const { settings } = req.body;
+
+  if (!Array.isArray(settings) || settings.length === 0) {
+    return res.status(400).json({ error: 'Un tableau de settings est requis' });
+  }
+
+  try {
+    const results = [];
+    for (const s of settings) {
+      if (!s.key || typeof s.value !== 'string') continue;
+
+      const { data, error } = await supabaseAdmin
+        .from('app_settings')
+        .update({
+          value: s.value.trim(),
+          updated_at: new Date().toISOString(),
+          updated_by: req.userId || null,
+        })
+        .eq('key', s.key)
+        .select()
+        .single();
+
+      if (error) {
+        console.error(`Update setting ${s.key} error:`, error);
+        continue;
+      }
+      results.push(data);
+    }
+
+    // Return masked values
+    const masked = results.map((s: any) => ({
+      ...s,
+      value: s.value
+        ? s.value.length > 4
+          ? '\u2022'.repeat(8) + s.value.slice(-4)
+          : '\u2022'.repeat(8)
+        : '',
+    }));
+
+    return res.json(masked);
+  } catch (error) {
+    console.error('Update settings error:', error);
+    return res.status(500).json({ error: 'Erreur mise a jour settings' });
   }
 });
 

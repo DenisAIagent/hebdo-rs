@@ -1,7 +1,8 @@
 import { useEffect, useState, useMemo } from 'react';
-import { adminGetDeliveries } from '../../services/api.ts';
+import { Link } from 'react-router-dom';
+import { adminGetDeliveries, adminDeleteDelivery } from '../../services/api.ts';
 import type { Delivery } from '../../types/index.ts';
-import { FolderOpen, ExternalLink, AlertCircle, Search } from 'lucide-react';
+import { FolderOpen, ExternalLink, AlertCircle, Search, Trash2, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -16,6 +17,20 @@ export function DeliveriesTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  async function handleDelete(id: string, title: string) {
+    if (!confirm(`Supprimer la livraison "${title}" ? Cette action est irreversible.`)) return;
+    setDeleting(id);
+    try {
+      await adminDeleteDelivery(id);
+      setDeliveries((prev) => prev.filter((d) => d.id !== id));
+    } catch {
+      alert('Erreur lors de la suppression');
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -151,6 +166,21 @@ export function DeliveriesTab() {
                               <ExternalLink size={16} />
                             </a>
                           )}
+                          <Link
+                            to={`/livrer/${d.id}?admin=true`}
+                            className="p-1.5 text-gray-400 hover:text-rs-red transition-colors"
+                            title="Modifier"
+                          >
+                            <Pencil size={15} />
+                          </Link>
+                          <button
+                            onClick={() => handleDelete(d.id, d.title)}
+                            disabled={deleting === d.id}
+                            className="p-1.5 text-gray-300 hover:text-red-600 transition-colors disabled:opacity-50"
+                            title="Supprimer"
+                          >
+                            <Trash2 size={15} />
+                          </button>
                         </div>
                       </td>
                     </tr>

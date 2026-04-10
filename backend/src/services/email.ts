@@ -1,4 +1,7 @@
-import nodemailer from 'nodemailer';
+/**
+ * Service de notification email via Resend.
+ * https://resend.com
+ */
 
 /** Escape HTML special characters to prevent injection in email templates */
 function escapeHtml(str: string): string {
@@ -21,16 +24,6 @@ function sanitizeUrl(url: string): string {
   }
 }
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
-
 export interface NotifyParams {
   journalistName: string;
   paperType: string;
@@ -41,12 +34,20 @@ export interface NotifyParams {
 }
 
 export async function notifyDelivery(params: NotifyParams) {
+  const RESEND_API_KEY = process.env.RESEND_API_KEY;
+  const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'RS Hebdo <onboarding@resend.dev>';
+
+  if (!RESEND_API_KEY) {
+    console.warn('RESEND_API_KEY not configured — email notification skipped');
+    return;
+  }
+
   const recipients = [
     process.env.NOTIFY_EMAIL_ALMA,
     process.env.NOTIFY_EMAIL_DENIS,
-  ].filter(Boolean).join(', ');
+  ].filter(Boolean) as string[];
 
-  if (!recipients) {
+  if (recipients.length === 0) {
     console.warn('No notification recipients configured');
     return;
   }
@@ -104,12 +105,26 @@ export async function notifyDelivery(params: NotifyParams) {
   `;
 
   try {
-    await transporter.sendMail({
-      from: `"RS Hebdo" <${process.env.SMTP_USER}>`,
-      to: recipients,
-      subject: `[${safeHebdo}] ${safePaperType} — ${safeTitle} (${safeJournalist})`,
-      html,
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: FROM_EMAIL,
+        to: recipients,
+        subject: `[${safeHebdo}] ${safePaperType} — ${safeTitle} (${safeJournalist})`,
+        html,
+      }),
     });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('Resend API error:', error);
+      return;
+    }
+
     console.log(`Notification sent for: ${params.title}`);
   } catch (error) {
     console.error('Failed to send notification email:', error);

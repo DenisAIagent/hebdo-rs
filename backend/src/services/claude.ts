@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../utils/supabase';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
+  timeout: 120_000, // 2 minutes max
 });
 
 // Hardcoded fallback prompt in case DB is unavailable
@@ -27,7 +28,15 @@ CONVENTIONS EDITORIALES ROLLING STONE :
 - Noms propres avec majuscules correctes
 - Style journalistique Rolling Stone (dynamique, precis, pas de jargon inutile)
 
-IMPORTANT : Ne modifie PAS le sens ni le ton du texte. Corrige uniquement les erreurs et applique le formatage editorial.
+MISE EN PAGE :
+- CONSERVE IMPERATIVEMENT tous les sauts de ligne (\\n) et la structure en paragraphes du texte original.
+- Ne fusionne JAMAIS deux paragraphes. Ne supprime JAMAIS de saut de ligne.
+- Chaque paragraphe du texte original doit rester un paragraphe separe dans le texte corrige.
+
+STYLE ET TON :
+- Ne modifie PAS le sens ni le ton du texte. Corrige uniquement les erreurs et applique le formatage editorial.
+- Les ponctuations expressives (?!, !?, ?!?, etc.) sont volontaires et font partie du style journalistique Rolling Stone. NE LES CORRIGE PAS. Exemples : "enfin de retour en France ?!" est correct, "c'est vraiment ca ?!" est correct.
+- Respecte le registre de langue du journaliste : familier, oral, exclamatif — c'est le style Rolling Stone, pas une erreur.
 
 Reponds UNIQUEMENT en JSON valide avec cette structure :
 {
@@ -75,21 +84,36 @@ export interface CorrectionResult {
   signCount: number;
 }
 
+// Unique marker that Claude won't touch — replaced back after correction
+const PARAGRAPH_MARKER = '¶¶BREAK¶¶';
+
 export async function correctText(text: string): Promise<CorrectionResult> {
   const promptText = await getPromptFromDB();
 
+  // Replace newlines with unique markers so Claude preserves paragraph structure
+  const markedText = text
+    .replace(/\n\n+/g, `\n${PARAGRAPH_MARKER}\n`)  // double+ newlines → marker
+    .replace(/\n/g, `\n${PARAGRAPH_MARKER}\n`);      // single newlines → marker
+
+  // Actually, simpler: split into paragraphs, number them, send with clear structure
+  const paragraphs = text.split(/\n/);
+  const numberedText = paragraphs
+    .map((p, i) => p.trim() === '' ? `[LIGNE_VIDE_${i}]` : p)
+    .join('\n');
+
+  const systemPrompt = `${promptText}
+
+REGLE ABSOLUE SUR LES SAUTS DE LIGNE :
+Le texte contient des marqueurs [LIGNE_VIDE_X] qui representent des lignes vides (sauts de paragraphe). Tu DOIS les conserver EXACTEMENT tels quels dans correctedText, a leur position d'origine. Chaque ligne du texte original doit rester sur sa propre ligne dans correctedText. Ne fusionne JAMAIS deux lignes.`;
+
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 8192,
+    max_tokens: 16384,
+    system: systemPrompt,
     messages: [
       {
         role: 'user',
-        content: `${promptText}
-
-Texte a corriger :
----
-${text}
----`,
+        content: `<text_to_correct>\n${numberedText}\n</text_to_correct>`,
       },
     ],
   });
@@ -107,10 +131,40 @@ ${text}
     }
 
     const result = JSON.parse(jsonText);
+
+    // Restore empty line markers back to actual newlines
+    let corrected: string = result.correctedText;
+    corrected = corrected.replace(/\[LIGNE_VIDE_\d+\]/g, '');
+
+    // Safety: if Claude somehow stripped all newlines, re-inject paragraph structure
+    const originalNewlines = (text.match(/\n/g) || []).length;
+    const correctedNewlines = (corrected.match(/\n/g) || []).length;
+
+    if (originalNewlines > 3 && correctedNewlines < originalNewlines * 0.5) {
+      // Claude butchered the formatting — use paragraph-by-paragraph correction
+      console.warn(`[Claude] Newlines lost: original=${originalNewlines}, corrected=${correctedNewlines}. Using original structure.`);
+      // Split original into paragraphs and try to map corrected text back
+      // Fallback: use corrected text but re-inject original paragraph breaks
+      const origParagraphs = text.split(/\n\n+/);
+      const corrParagraphs = corrected.split(/\n\n+/);
+
+      if (corrParagraphs.length >= origParagraphs.length * 0.5) {
+        corrected = corrParagraphs.join('\n\n');
+      } else {
+        // Last resort: apply corrections but keep original structure
+        corrected = text;
+        for (const c of (result.corrections || [])) {
+          if (c.original && c.corrected) {
+            corrected = corrected.replace(c.original, c.corrected);
+          }
+        }
+      }
+    }
+
     return {
-      correctedText: result.correctedText,
+      correctedText: corrected,
       corrections: result.corrections || [],
-      signCount: result.correctedText.length,
+      signCount: corrected.length,
     };
   } catch (e) {
     console.error('Failed to parse Claude correction response:', e);

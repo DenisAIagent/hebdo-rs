@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore.ts';
-import { getMyDeliveries, getAllHebdos } from '../services/api.ts';
+import { isOnboardingDone } from './OnboardingPage.tsx';
+import { getMyDeliveries, getNextHebdo } from '../services/api.ts';
 import type { Delivery, HebdoConfig } from '../types/index.ts';
-import { Send, FileText, Clock, ExternalLink, FolderOpen, ChevronDown } from 'lucide-react';
+import { Send, FileText, Clock, ExternalLink, FolderOpen, ChevronDown, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -19,20 +20,49 @@ function isSafeUrl(url: string): boolean {
 
 export function DashboardPage() {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [hebdos, setHebdos] = useState<HebdoConfig[]>([]);
   const [selectedHebdoId, setSelectedHebdoId] = useState<string | 'all'>('all');
   const [loading, setLoading] = useState(true);
 
+  // Redirect to onboarding if not completed
+  useEffect(() => {
+    if (user && !isOnboardingDone(user.id)) {
+      navigate('/onboarding', { replace: true });
+    }
+  }, [user, navigate]);
+
   useEffect(() => {
     async function load() {
       try {
-        const [d, allHebdos] = await Promise.all([getMyDeliveries(), getAllHebdos()]);
+        const [d, currentHebdo] = await Promise.all([getMyDeliveries(), getNextHebdo()]);
         setDeliveries(d);
-        setHebdos(allHebdos);
+
+        // Build hebdo list from deliveries joined data
+        const hebdoMap = new Map<string, HebdoConfig>();
+        for (const del of d) {
+          if (del.hebdo_id && del.hebdo) {
+            hebdoMap.set(del.hebdo_id, {
+              id: del.hebdo_id,
+              numero: del.hebdo.numero,
+              label: del.hebdo.label,
+              start_date: null,
+              end_date: null,
+              is_current: currentHebdo?.id === del.hebdo_id,
+              created_at: '',
+            });
+          }
+        }
+        // Add current hebdo if not already present
+        if (currentHebdo && !hebdoMap.has(currentHebdo.id)) {
+          hebdoMap.set(currentHebdo.id, currentHebdo);
+        }
+        const hebdoList = Array.from(hebdoMap.values()).sort((a, b) => b.numero - a.numero);
+        setHebdos(hebdoList);
+
         // Pre-select current hebdo
-        const current = allHebdos.find((h) => h.is_current);
-        if (current) setSelectedHebdoId(current.id);
+        if (currentHebdo) setSelectedHebdoId(currentHebdo.id);
       } catch (err) {
         console.error('Dashboard load error:', err);
       } finally {
@@ -184,6 +214,13 @@ export function DashboardPage() {
                   }`}>
                     {d.status === 'delivered' ? 'Livre' : d.status === 'corrected' ? 'Corrige' : 'Brouillon'}
                   </span>
+                  <Link
+                    to={`/livrer/${d.id}`}
+                    className="p-1.5 text-gray-400 hover:text-rs-red transition-colors"
+                    title="Modifier"
+                  >
+                    <Pencil size={16} />
+                  </Link>
                   {d.drive_folder_url && isSafeUrl(d.drive_folder_url) && (
                     <a
                       href={d.drive_folder_url}

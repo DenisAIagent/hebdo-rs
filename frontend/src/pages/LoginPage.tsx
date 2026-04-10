@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore.ts';
 import { Lock, Mail, AlertCircle } from 'lucide-react';
 
@@ -84,10 +84,19 @@ export function LoginPage() {
             </div>
           </div>
 
+          <div className="flex items-center justify-between mt-4">
+            <Link
+              to="/forgot-password"
+              className="text-sm text-gray-500 hover:text-rs-red transition-colors"
+            >
+              Mot de passe oublié ?
+            </Link>
+          </div>
+
           <button
             type="submit"
             disabled={loading}
-            className="w-full mt-6 bg-rs-red hover:bg-rs-red-dark disabled:opacity-50 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors"
+            className="w-full mt-4 bg-rs-red hover:bg-rs-red-dark disabled:opacity-50 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors"
           >
             {loading ? 'Connexion...' : 'Se connecter'}
           </button>
