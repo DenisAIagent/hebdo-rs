@@ -37,13 +37,13 @@ export function LoginPage() {
           padding: '56px 56px 40px',
         }}
       >
-        {/* Real Rolling Stone France logo */}
-        <div className="flex items-center gap-3">
+        {/* Logo kept as-is — red mark stays readable on the dark pane */}
+        <div className="inline-flex items-center gap-3 self-start">
           <img
             src="/logo-rs-france.png"
             alt="Rolling Stone France"
             className="h-10 w-auto"
-            style={{ filter: 'invert(1) brightness(1.1)' }}
+            style={{ display: 'block' }}
           />
           <span
             className="serif italic"
