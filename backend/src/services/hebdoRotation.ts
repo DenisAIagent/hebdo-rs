@@ -1,10 +1,15 @@
 import { supabaseAdmin } from '../utils/supabase';
+import { formatDateOnly, nextFridayString } from '../utils/dates';
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000; // every hour
 
 /**
  * Check if the current hebdo's end_date has passed.
- * If so, create the next issue (N+1) with a 7-day window and set it as current.
+ * If so, create the next issue (N+1) anchored on the next Friday.
+ *
+ * The publication cycle is weekly (Friday → following Friday). The end_date
+ * of the current issue is the moment it stops being "current"; the new issue
+ * starts on that date and ends the Friday after.
  */
 async function rotateHebdoIfNeeded(): Promise<void> {
   try {
@@ -32,12 +37,9 @@ async function rotateHebdoIfNeeded(): Promise<void> {
     }
 
     const nextNumero = current.numero + 1;
-    // Next issue: starts on end_date of current, ends 7 days later (next Friday)
-    const nextStart = new Date(endDate);
-    const nextEnd = new Date(endDate);
-    nextEnd.setUTCDate(nextEnd.getUTCDate() + 7);
-
-    const formatDate = (d: Date) => d.toISOString().split('T')[0];
+    // Next issue starts on end_date of current, ends on the Friday after that
+    const nextStart = endDate;
+    const nextEndStr = nextFridayString(nextStart);
 
     // Unset current
     await supabaseAdmin
@@ -46,13 +48,13 @@ async function rotateHebdoIfNeeded(): Promise<void> {
       .eq('id', current.id);
 
     // Create next hebdo
-    const { data: newHebdo, error: insertError } = await supabaseAdmin
+    const { error: insertError } = await supabaseAdmin
       .from('hebdo_config')
       .insert({
         numero: nextNumero,
         label: `RSH${nextNumero}`,
-        start_date: formatDate(nextStart),
-        end_date: formatDate(nextEnd),
+        start_date: formatDateOnly(nextStart),
+        end_date: nextEndStr,
         is_current: true,
       })
       .select()
@@ -68,7 +70,10 @@ async function rotateHebdoIfNeeded(): Promise<void> {
       return;
     }
 
-    console.log(`[hebdo-rotation] Rotated: RSH${current.numero} -> RSH${nextNumero} (end_date: ${formatDate(nextEnd)})`);
+    console.log(
+      `[hebdo-rotation] Rotated: RSH${current.numero} -> RSH${nextNumero} ` +
+        `(window: ${formatDateOnly(nextStart)} -> ${nextEndStr})`,
+    );
   } catch (err) {
     console.error('[hebdo-rotation] Unexpected error:', err);
   }
@@ -78,7 +83,7 @@ async function rotateHebdoIfNeeded(): Promise<void> {
  * Start the hebdo auto-rotation: check immediately on boot, then every hour.
  */
 export function startHebdoRotation(): void {
-  console.log('[hebdo-rotation] Auto-rotation enabled (check every hour)');
+  console.log('[hebdo-rotation] Auto-rotation enabled (check every hour, Friday→Friday)');
   rotateHebdoIfNeeded();
   setInterval(rotateHebdoIfNeeded, CHECK_INTERVAL_MS);
 }

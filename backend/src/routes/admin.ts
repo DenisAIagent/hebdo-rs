@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { supabaseAdmin } from '../utils/supabase';
+import { todayString, nextFridayString } from '../utils/dates';
 
 const router = Router();
 
@@ -123,11 +124,17 @@ router.get('/hebdo', async (_req: AuthRequest, res: Response) => {
 });
 
 // POST /api/admin/hebdo - Create and set current hebdo
+// Auto-fills the publication window if dates are missing:
+//   start_date = today, end_date = next Friday
+// so the weekly auto-rotation can take over from the new number.
 router.post('/hebdo', async (req: AuthRequest, res: Response) => {
   const { numero, start_date, end_date } = req.body;
   if (!numero) {
     return res.status(400).json({ error: 'Numero requis' });
   }
+
+  const start = start_date || todayString();
+  const end = end_date || nextFridayString(new Date(start + 'T00:00:00Z'));
 
   try {
     // Unset all current
@@ -142,8 +149,8 @@ router.post('/hebdo', async (req: AuthRequest, res: Response) => {
       .insert({
         numero: parseInt(numero),
         label: `RSH${numero}`,
-        start_date: start_date || null,
-        end_date: end_date || null,
+        start_date: start,
+        end_date: end,
         is_current: true,
       })
       .select()
@@ -158,6 +165,8 @@ router.post('/hebdo', async (req: AuthRequest, res: Response) => {
 });
 
 // PUT /api/admin/hebdo/:id/set-current - Set a hebdo as current
+// If the target hebdo has no end_date, we anchor the cycle on the next
+// Friday so rotation picks up automatically from this number.
 router.put('/hebdo/:id/set-current', async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   try {
@@ -166,16 +175,32 @@ router.put('/hebdo/:id/set-current', async (req: AuthRequest, res: Response) => 
       .update({ is_current: false })
       .eq('is_current', true);
 
+    // Fetch target to know whether we need to seed the publication window
+    const { data: target, error: fetchError } = await supabaseAdmin
+      .from('hebdo_config')
+      .select('start_date, end_date')
+      .eq('id', id)
+      .single();
+    if (fetchError) throw fetchError;
+
+    const patch: Record<string, unknown> = { is_current: true };
+    if (!target?.end_date) {
+      const start = target?.start_date || todayString();
+      patch.start_date = start;
+      patch.end_date = nextFridayString(new Date(start + 'T00:00:00Z'));
+    }
+
     const { data, error } = await supabaseAdmin
       .from('hebdo_config')
-      .update({ is_current: true })
+      .update(patch)
       .eq('id', id)
       .select()
       .single();
 
     if (error) throw error;
     return res.json(data);
-  } catch {
+  } catch (error) {
+    console.error('Set current hebdo error:', error);
     return res.status(500).json({ error: 'Erreur changement hebdo' });
   }
 });

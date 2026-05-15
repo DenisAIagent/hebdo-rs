@@ -146,6 +146,9 @@ export function HebdoTab() {
             Creer et activer
           </button>
         </div>
+        <p className="mt-2 text-xs text-gray-500">
+          Laissez les dates vides : elles seront calculées automatiquement (aujourd'hui &rarr; vendredi suivant). La rotation hebdomadaire reprendra ensuite chaque vendredi à partir de ce numéro.
+        </p>
       </form>
 
       {/* List */}
