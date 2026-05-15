@@ -2,21 +2,20 @@ import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore.ts';
 import {
-  Newspaper,
   LayoutDashboard,
   Send,
   Pencil,
-  Rocket,
+  Sparkles,
   ChevronLeft,
   ChevronRight,
   Star,
   StarHalf,
   ImageIcon,
   FileText,
-  Sparkles,
   FolderOpen,
   ArrowRight,
   Check,
+  X,
 } from 'lucide-react';
 
 const TOTAL_STEPS = 5;
@@ -39,24 +38,39 @@ function markOnboardingDone(userId: string) {
 
 function StepWelcome() {
   return (
-    <div className="flex flex-col items-center text-center px-4">
+    <div className="text-center px-4">
       <img
         src="/logo-rs-france.png"
         alt="Rolling Stone France"
-        className="h-14 mb-8"
+        className="h-12 mx-auto mb-8"
       />
-      <h2 className="text-3xl font-bold text-rs-black mb-4">
-        Bienvenue sur RS Hebdo Delivery
+      <div className="eyebrow" style={{ marginBottom: 8 }}>Bienvenue</div>
+      <h2
+        className="serif italic"
+        style={{ fontSize: 48, lineHeight: 1.05, marginBottom: 16 }}
+      >
+        Bienvenue sur<br />Hebdo Delivery.
       </h2>
-      <p className="text-gray-500 text-lg max-w-lg leading-relaxed">
-        Cette plateforme vous permet de livrer vos papiers pour le magazine
-        <span className="font-semibold text-rs-red"> Rolling Stone France</span>.
-        En quelques clics, envoyez vos articles, photos et critiques directement
-        a la redaction.
+      <p
+        className="mx-auto"
+        style={{
+          fontSize: 16,
+          color: 'var(--muted)',
+          lineHeight: 1.6,
+          maxWidth: 520,
+        }}
+      >
+        Cette plateforme vous permet de livrer vos papiers pour le magazine{' '}
+        <strong style={{ color: 'var(--rs-red)' }}>Rolling Stone France</strong>.
+        En quatre étapes, envoyez vos articles, photos et critiques directement à
+        la rédaction.
       </p>
-      <div className="mt-10 flex items-center gap-3 text-sm text-gray-400">
-        <Newspaper size={18} />
-        <span>Rapide, simple et centralise</span>
+      <div
+        className="inline-flex items-center gap-2 mt-10"
+        style={{ fontSize: 12, color: 'var(--muted)' }}
+      >
+        <Sparkles size={14} style={{ color: 'var(--rs-red)' }} />
+        <span>Rapide, simple et centralisé</span>
       </div>
     </div>
   );
@@ -64,95 +78,170 @@ function StepWelcome() {
 
 function StepDashboard() {
   return (
-    <div className="flex flex-col items-center text-center px-4">
-      <div className="p-4 bg-rs-red/10 rounded-2xl mb-6">
-        <LayoutDashboard size={36} className="text-rs-red" />
+    <div className="text-center px-4">
+      <div
+        className="inline-flex items-center justify-center mb-6"
+        style={{
+          width: 64,
+          height: 64,
+          borderRadius: 'var(--r-lg)',
+          background: 'var(--rs-red-tint)',
+          color: 'var(--rs-red)',
+        }}
+      >
+        <LayoutDashboard size={28} />
       </div>
-      <h2 className="text-2xl font-bold text-rs-black mb-3">
+      <div className="eyebrow" style={{ marginBottom: 6 }}>Étape 1</div>
+      <h2
+        className="serif"
+        style={{ fontSize: 32, lineHeight: 1.1, marginBottom: 12 }}
+      >
         Votre tableau de bord
       </h2>
-      <p className="text-gray-500 max-w-lg mb-8">
-        Le dashboard affiche toutes vos livraisons et le numero d'hebdo en cours.
-        Filtrez par numero pour retrouver facilement vos papiers.
+      <p
+        className="mx-auto"
+        style={{ color: 'var(--muted)', maxWidth: 520, marginBottom: 32 }}
+      >
+        Le dashboard affiche toutes vos livraisons et le numéro d'hebdo en cours.
+        Filtrez par numéro pour retrouver facilement vos papiers.
       </p>
 
-      {/* Mini mockup */}
-      <div className="w-full max-w-md bg-white rounded-xl border border-gray-200 overflow-hidden text-left shadow-sm">
-        {/* Header */}
-        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-          <span className="text-sm font-semibold text-rs-black">Mes livraisons</span>
-          <span className="text-xs px-2 py-0.5 bg-rs-red/10 text-rs-red rounded-full font-medium">
-            Hebdo n.42
+      <div className="rs-card mx-auto text-left" style={{ maxWidth: 420 }}>
+        <div
+          className="flex items-center justify-between"
+          style={{
+            padding: '12px 16px',
+            borderBottom: '1px solid var(--border)',
+          }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Mes livraisons</span>
+          <span className="rs-chip red">RSH 226</span>
+        </div>
+        <div
+          className="flex items-center justify-between"
+          style={{
+            padding: '12px 16px',
+            borderBottom: '1px solid var(--border)',
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <span className="rs-chip muted">Interview 3000</span>
+            <span style={{ fontSize: 13, color: 'var(--ink)' }}>
+              PJ Harvey — l'élégance…
+            </span>
+          </div>
+          <span className="rs-chip ok">
+            <Check size={11} /> Livré
           </span>
         </div>
-        {/* Row 1 */}
-        <div className="px-4 py-3 border-b border-gray-50 flex items-center justify-between">
+        <div
+          className="flex items-center justify-between"
+          style={{ padding: '12px 16px' }}
+        >
           <div className="flex items-center gap-2">
-            <span className="text-xs px-2 py-0.5 bg-gray-100 rounded text-gray-600 font-medium">Critique</span>
-            <span className="text-sm text-rs-black">Mon article rock</span>
+            <span className="rs-chip muted">Chronique</span>
+            <span style={{ fontSize: 13, color: 'var(--ink)' }}>
+              Anatomie d'une chute…
+            </span>
           </div>
-          <span className="text-xs px-2 py-0.5 bg-green-50 text-green-700 rounded-full font-medium">Livre</span>
-        </div>
-        {/* Row 2 */}
-        <div className="px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xs px-2 py-0.5 bg-gray-100 rounded text-gray-600 font-medium">News</span>
-            <span className="text-sm text-rs-black">Interview festival</span>
-          </div>
-          <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full font-medium">Corrige</span>
+          <span className="rs-chip info">
+            <Sparkles size={11} /> Corrigé
+          </span>
         </div>
       </div>
 
-      <p className="text-xs text-gray-400 mt-4 flex items-center gap-1">
+      <p
+        className="inline-flex items-center gap-1 mt-6"
+        style={{ fontSize: 11, color: 'var(--muted)' }}
+      >
         <ArrowRight size={12} />
-        Utilisez le filtre pour naviguer entre les numeros
+        Utilisez le filtre pour naviguer entre les numéros.
       </p>
     </div>
   );
 }
 
 function StepDeliver() {
+  const steps = [
+    { icon: <FileText size={18} />, label: 'Choisissez le type de papier' },
+    { icon: <Pencil size={18} />, label: 'Rédigez le contenu et joignez les visuels' },
+    { icon: <Sparkles size={18} />, label: 'Laissez l\'IA proposer ses corrections' },
+    { icon: <Send size={18} />, label: 'Vérifiez et envoyez à la rédaction' },
+  ];
   return (
-    <div className="flex flex-col items-center text-center px-4">
-      <div className="p-4 bg-green-50 rounded-2xl mb-6">
-        <Send size={36} className="text-green-600" />
+    <div className="text-center px-4">
+      <div
+        className="inline-flex items-center justify-center mb-6"
+        style={{
+          width: 64,
+          height: 64,
+          borderRadius: 'var(--r-lg)',
+          background: 'var(--ok-tint)',
+          color: 'var(--ok)',
+        }}
+      >
+        <Send size={28} />
       </div>
-      <h2 className="text-2xl font-bold text-rs-black mb-3">
+      <div className="eyebrow" style={{ marginBottom: 6 }}>Étape 2</div>
+      <h2 className="serif" style={{ fontSize: 32, lineHeight: 1.1, marginBottom: 12 }}>
         Livrer un papier
       </h2>
-      <p className="text-gray-500 max-w-lg mb-8">
-        La livraison se fait en 4 etapes simples :
+      <p
+        className="mx-auto"
+        style={{ color: 'var(--muted)', maxWidth: 520, marginBottom: 28 }}
+      >
+        La livraison se fait en quatre étapes claires.
       </p>
 
-      {/* Steps */}
-      <div className="w-full max-w-sm space-y-3 text-left">
-        {[
-          { icon: <FileText size={18} />, label: 'Choisissez le type de papier', color: 'bg-gray-100 text-gray-600' },
-          { icon: <Pencil size={18} />, label: 'Remplissez le contenu et les champs', color: 'bg-blue-50 text-blue-600' },
-          { icon: <Sparkles size={18} />, label: 'Correction automatique par IA', color: 'bg-purple-50 text-purple-600' },
-          { icon: <Send size={18} />, label: 'Envoyez a la redaction !', color: 'bg-green-50 text-green-600' },
-        ].map((step, i) => (
-          <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-white border border-gray-100 shadow-sm">
-            <div className={`p-2 rounded-lg ${step.color}`}>{step.icon}</div>
-            <span className="text-sm font-medium text-rs-black">{step.label}</span>
-            <span className="ml-auto text-xs text-gray-300 font-semibold">{i + 1}</span>
+      <div className="mx-auto space-y-3 text-left" style={{ maxWidth: 420 }}>
+        {steps.map((s, i) => (
+          <div
+            key={i}
+            className="rs-card flex items-center gap-3"
+            style={{ padding: '12px 14px' }}
+          >
+            <div
+              className="flex items-center justify-center"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 'var(--r-md)',
+                background: 'var(--paper-2)',
+                color: 'var(--ink)',
+                flexShrink: 0,
+              }}
+            >
+              {s.icon}
+            </div>
+            <span style={{ fontSize: 14, fontWeight: 500, flex: 1 }}>
+              {s.label}
+            </span>
+            <span
+              className="mono"
+              style={{ fontSize: 12, color: 'var(--muted)' }}
+            >
+              0{i + 1}
+            </span>
           </div>
         ))}
       </div>
 
-      {/* Tips */}
-      <div className="mt-8 w-full max-w-sm space-y-2 text-left text-sm text-gray-500">
+      <div
+        className="mx-auto mt-8 space-y-2 text-left"
+        style={{ maxWidth: 420, fontSize: 13, color: 'var(--muted)' }}
+      >
         <p className="flex items-start gap-2">
-          <ImageIcon size={16} className="mt-0.5 text-gray-400 shrink-0" />
-          Les champs avec une etoile (<span className="text-rs-red">*</span>) sont obligatoires
+          <ImageIcon size={14} className="mt-0.5 shrink-0" />
+          Les champs marqués <strong style={{ color: 'var(--rs-red)' }}>•</strong>{' '}
+          sont obligatoires.
         </p>
         <p className="flex items-start gap-2">
-          <Star size={16} className="mt-0.5 text-gray-400 shrink-0" />
-          Chaque type de papier a une limite de signes a respecter
+          <Star size={14} className="mt-0.5 shrink-0" />
+          Chaque type de papier a une limite de signes à respecter.
         </p>
         <p className="flex items-start gap-2">
-          <StarHalf size={16} className="mt-0.5 text-yellow-500 shrink-0" />
-          Etoiles : clic gauche = demi-etoile, clic droit = etoile entiere
+          <StarHalf size={14} className="mt-0.5 shrink-0" style={{ color: 'var(--star)' }} />
+          Étoiles : clic gauche = demi, clic droit = entière.
         </p>
       </div>
     </div>
@@ -161,70 +250,146 @@ function StepDeliver() {
 
 function StepEdit() {
   return (
-    <div className="flex flex-col items-center text-center px-4">
-      <div className="p-4 bg-blue-50 rounded-2xl mb-6">
-        <Pencil size={36} className="text-blue-600" />
+    <div className="text-center px-4">
+      <div
+        className="inline-flex items-center justify-center mb-6"
+        style={{
+          width: 64,
+          height: 64,
+          borderRadius: 'var(--r-lg)',
+          background: 'var(--info-tint)',
+          color: 'var(--info)',
+        }}
+      >
+        <Pencil size={28} />
       </div>
-      <h2 className="text-2xl font-bold text-rs-black mb-3">
+      <div className="eyebrow" style={{ marginBottom: 6 }}>Étape 3</div>
+      <h2 className="serif" style={{ fontSize: 32, lineHeight: 1.1, marginBottom: 12 }}>
         Modifier un papier
       </h2>
-      <p className="text-gray-500 max-w-lg mb-8">
-        Vous pouvez modifier un papier deja soumis a tout moment en cliquant sur
-        l'icone crayon dans votre liste de livraisons.
+      <p
+        className="mx-auto"
+        style={{ color: 'var(--muted)', maxWidth: 520, marginBottom: 28 }}
+      >
+        Vous pouvez modifier un papier déjà livré à tout moment, en cliquant sur
+        l'icône crayon dans votre liste de livraisons.
       </p>
 
-      {/* Illustration */}
-      <div className="w-full max-w-md bg-white rounded-xl border border-gray-200 overflow-hidden text-left shadow-sm">
-        <div className="px-4 py-3 flex items-center justify-between">
+      <div className="rs-card mx-auto text-left" style={{ maxWidth: 420 }}>
+        <div
+          className="flex items-center justify-between"
+          style={{ padding: '14px 16px' }}
+        >
           <div className="flex items-center gap-2">
-            <span className="text-xs px-2 py-0.5 bg-gray-100 rounded text-gray-600 font-medium">Critique</span>
-            <span className="text-sm text-rs-black">Mon article rock</span>
+            <span className="rs-chip muted">Interview 3000</span>
+            <span style={{ fontSize: 13 }}>PJ Harvey…</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs px-2 py-0.5 bg-green-50 text-green-700 rounded-full font-medium">Livre</span>
-            <div className="p-1.5 bg-rs-red/10 rounded-lg">
-              <Pencil size={14} className="text-rs-red" />
-            </div>
+            <span className="rs-chip ok">
+              <Check size={11} /> Livré
+            </span>
+            <button
+              className="rs-btn icon"
+              style={{
+                width: 28,
+                height: 28,
+                background: 'var(--rs-red-tint)',
+                color: 'var(--rs-red)',
+              }}
+              tabIndex={-1}
+            >
+              <Pencil size={14} />
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="mt-8 w-full max-w-sm space-y-2 text-left text-sm text-gray-500">
+      <div
+        className="mx-auto mt-8 space-y-2 text-left"
+        style={{ maxWidth: 420, fontSize: 13, color: 'var(--muted)' }}
+      >
         <p className="flex items-start gap-2">
-          <FolderOpen size={16} className="mt-0.5 text-gray-400 shrink-0" />
-          Le document sera automatiquement mis a jour dans Dropbox
+          <FolderOpen size={14} className="mt-0.5 shrink-0" />
+          Le document sera automatiquement mis à jour dans Dropbox.
         </p>
         <p className="flex items-start gap-2">
-          <Sparkles size={16} className="mt-0.5 text-gray-400 shrink-0" />
-          La correction IA sera relancee sur le texte modifie
+          <Sparkles size={14} className="mt-0.5 shrink-0" />
+          La correction IA sera relancée sur le texte modifié.
         </p>
       </div>
     </div>
   );
 }
 
-function StepReady({ skipChecked, onToggleSkip }: { skipChecked: boolean; onToggleSkip: () => void }) {
+function StepReady({
+  skipChecked,
+  onToggleSkip,
+}: {
+  skipChecked: boolean;
+  onToggleSkip: () => void;
+}) {
   return (
-    <div className="flex flex-col items-center text-center px-4">
-      <div className="p-4 bg-rs-red/10 rounded-2xl mb-6">
-        <Rocket size={36} className="text-rs-red" />
+    <div className="text-center px-4">
+      <div
+        className="inline-flex items-center justify-center mb-6 relative"
+        style={{
+          width: 80,
+          height: 80,
+          borderRadius: '50%',
+          background: 'var(--ok-tint)',
+          border: '2px solid var(--ok)',
+          color: 'var(--ok)',
+        }}
+      >
+        <Check size={36} />
+        <span
+          aria-hidden
+          style={{
+            position: 'absolute',
+            inset: -6,
+            borderRadius: '50%',
+            border: '2px solid var(--ok)',
+            opacity: 0.4,
+          }}
+        />
       </div>
-      <h2 className="text-2xl font-bold text-rs-black mb-3">
+      <div className="eyebrow" style={{ color: 'var(--ok)', marginBottom: 8 }}>
+        Tout est prêt
+      </div>
+      <h2
+        className="serif italic"
+        style={{ fontSize: 44, lineHeight: 1.05, marginBottom: 14 }}
+      >
         C'est parti !
       </h2>
-      <p className="text-gray-500 max-w-lg mb-8">
-        Vous etes pret a livrer votre premier papier pour Rolling Stone France.
-        Bonne redaction !
+      <p
+        className="mx-auto"
+        style={{
+          color: 'var(--muted)',
+          maxWidth: 520,
+          marginBottom: 28,
+        }}
+      >
+        Vous êtes prêt·e à livrer votre premier papier pour Rolling Stone France.
+        Bonne rédaction.
       </p>
 
-      <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer select-none">
+      <label
+        className="inline-flex items-center gap-2 cursor-pointer select-none"
+        style={{ fontSize: 13, color: 'var(--muted)' }}
+      >
         <input
           type="checkbox"
           checked={skipChecked}
           onChange={onToggleSkip}
-          className="w-4 h-4 rounded border-gray-300 text-rs-red focus:ring-rs-red accent-[#e40000]"
+          style={{
+            width: 16,
+            height: 16,
+            accentColor: 'var(--rs-red)',
+            cursor: 'pointer',
+          }}
         />
-        Ne plus afficher ce tutoriel
+        Ne plus afficher ce tutoriel au démarrage
       </label>
     </div>
   );
@@ -238,16 +403,22 @@ function ProgressDots({ current, total }: { current: number; total: number }) {
   return (
     <div className="flex items-center gap-2">
       {Array.from({ length: total }, (_, i) => (
-        <button
+        <span
           key={i}
-          aria-label={`Etape ${i + 1}`}
-          className={`rounded-full transition-all duration-300 ${
-            i === current
-              ? 'w-8 h-2.5 bg-rs-red'
-              : i < current
-                ? 'w-2.5 h-2.5 bg-rs-red/40'
-                : 'w-2.5 h-2.5 bg-gray-200'
-          }`}
+          aria-label={`Étape ${i + 1}`}
+          style={{
+            display: 'inline-block',
+            borderRadius: 999,
+            transition: 'all 0.3s var(--ease)',
+            width: i === current ? 32 : 10,
+            height: 10,
+            background:
+              i === current
+                ? 'var(--rs-red)'
+                : i < current
+                  ? 'var(--rs-red-tint)'
+                  : 'var(--border)',
+          }}
         />
       ))}
     </div>
@@ -271,7 +442,6 @@ export function OnboardingPage() {
       if (animating) return;
       setDirection(dir);
       setAnimating(true);
-      // Let CSS transition play
       setTimeout(() => {
         setStep(target);
         setAnimating(false);
@@ -310,13 +480,18 @@ export function OnboardingPage() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-white via-white to-gray-50">
+    <div
+      className="min-h-screen flex flex-col"
+      style={{ background: 'var(--paper)' }}
+    >
       {/* Skip link */}
       <div className="flex justify-end p-4">
         <button
           onClick={finish}
-          className="text-sm text-gray-400 hover:text-rs-red transition-colors"
+          className="rs-btn ghost sm"
+          aria-label="Passer le tutoriel"
         >
+          <X size={14} />
           Passer le tutoriel
         </button>
       </div>
@@ -324,7 +499,7 @@ export function OnboardingPage() {
       {/* Content area */}
       <div className="flex-1 flex flex-col items-center justify-center px-4 pb-8">
         <div
-          className={`w-full max-w-xl transition-all duration-200 ease-in-out ${
+          className={`w-full max-w-2xl transition-all duration-200 ease-in-out ${
             animating
               ? direction === 'next'
                 ? 'opacity-0 translate-x-6'
@@ -337,41 +512,35 @@ export function OnboardingPage() {
       </div>
 
       {/* Bottom bar */}
-      <div className="sticky bottom-0 bg-white/80 backdrop-blur border-t border-gray-100">
-        <div className="max-w-xl mx-auto flex items-center justify-between px-6 py-4">
-          {/* Prev */}
+      <div
+        className="sticky bottom-0"
+        style={{
+          background: 'var(--surface)',
+          borderTop: '1px solid var(--border)',
+        }}
+      >
+        <div className="max-w-2xl mx-auto flex items-center justify-between px-6 py-4">
           <button
             onClick={prev}
             disabled={step === 0}
-            className={`flex items-center gap-1 text-sm font-medium transition-colors ${
-              step === 0
-                ? 'text-gray-200 cursor-default'
-                : 'text-gray-500 hover:text-rs-black'
-            }`}
+            className="rs-btn ghost sm"
+            style={{ opacity: step === 0 ? 0.3 : 1 }}
           >
-            <ChevronLeft size={18} />
-            Precedent
+            <ChevronLeft size={16} />
+            Précédent
           </button>
 
-          {/* Dots */}
           <ProgressDots current={step} total={TOTAL_STEPS} />
 
-          {/* Next / Finish */}
           {isLast ? (
-            <button
-              onClick={finish}
-              className="flex items-center gap-1.5 px-5 py-2 bg-rs-red text-white text-sm font-semibold rounded-lg hover:bg-rs-red-dark transition-colors shadow-sm"
-            >
+            <button onClick={finish} className="rs-btn primary">
               <Check size={16} />
               Commencer
             </button>
           ) : (
-            <button
-              onClick={next}
-              className="flex items-center gap-1 text-sm font-medium text-rs-red hover:text-rs-red-dark transition-colors"
-            >
+            <button onClick={next} className="rs-btn ink sm">
               Suivant
-              <ChevronRight size={18} />
+              <ChevronRight size={16} />
             </button>
           )}
         </div>

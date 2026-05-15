@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, type FormEvent } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import {
   getActivePaperTypes,
@@ -12,11 +12,10 @@ import {
   adminGetDelivery,
   adminUpdateDelivery,
 } from '../services/api.ts';
-import type { PaperType, HebdoConfig, CorrectionResult, Delivery } from '../types/index.ts';
+import type { PaperType, HebdoConfig, CorrectionResult, Delivery, FieldConfig } from '../types/index.ts';
 import {
   ChevronRight,
   ChevronLeft,
-  Image,
   FileText,
   CheckCircle,
   AlertCircle,
@@ -26,12 +25,24 @@ import {
   Send,
   Star,
   Calendar,
+  Plus,
+  Check,
+  Upload,
+  Home,
+  Eye,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import toast from 'react-hot-toast';
 
 type Step = 'type' | 'content' | 'correction' | 'review';
+
+const STEPS: { key: Step; label: string }[] = [
+  { key: 'type', label: 'Type de papier' },
+  { key: 'content', label: 'Rédaction' },
+  { key: 'correction', label: 'Correction IA' },
+  { key: 'review', label: 'Vérification & envoi' },
+];
 
 export function DeliveryFormPage() {
   const navigate = useNavigate();
@@ -51,11 +62,9 @@ export function DeliveryFormPage() {
   // Form
   const [step, setStep] = useState<Step>('type');
   const [selectedType, setSelectedType] = useState<PaperType | null>(null);
-
-  // Dynamic fields stored in metadata
   const [metadata, setMetadata] = useState<Record<string, any>>({});
 
-  // Multiple images support
+  // Multiple images
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
 
@@ -70,6 +79,9 @@ export function DeliveryFormPage() {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [driveUrl, setDriveUrl] = useState('');
 
+  // Validation
+  const [showValidation, setShowValidation] = useState(false);
+
   useEffect(() => {
     async function load() {
       try {
@@ -77,18 +89,15 @@ export function DeliveryFormPage() {
         setPaperTypes(pt);
         setNextHebdo(hebdo);
 
-        // Edit mode: load existing delivery and pre-fill form
         if (editId) {
           const delivery = isAdminEdit ? await adminGetDelivery(editId) : await getDelivery(editId);
           setEditDelivery(delivery);
 
-          // Find and set the paper type
-          const paperType = pt.find(p => p.id === delivery.paper_type_id) || delivery.paper_type as unknown as PaperType;
-          if (paperType) {
-            setSelectedType(paperType);
-          }
+          const paperType =
+            pt.find((p) => p.id === delivery.paper_type_id) ||
+            (delivery.paper_type as unknown as PaperType);
+          if (paperType) setSelectedType(paperType);
 
-          // Set hebdo
           if (delivery.hebdo) {
             setNextHebdo({
               id: delivery.hebdo_id,
@@ -101,15 +110,9 @@ export function DeliveryFormPage() {
             });
           }
 
-          // Pre-fill metadata
           setMetadata(delivery.metadata || {});
+          if (delivery.body_corrected) setBodyCorrected(delivery.body_corrected);
 
-          // Pre-fill corrected body if available
-          if (delivery.body_corrected) {
-            setBodyCorrected(delivery.body_corrected);
-          }
-
-          // In edit mode, skip to content step directly
           setHebdoConfirmed(true);
           setStep('content');
         }
@@ -126,7 +129,6 @@ export function DeliveryFormPage() {
     load();
   }, [editId]);
 
-  // Confirm hebdo selection and trigger Dropbox folder creation
   const handleConfirmHebdo = async () => {
     if (!nextHebdo) return;
     setPreparingFolders(true);
@@ -135,29 +137,25 @@ export function DeliveryFormPage() {
       setHebdoConfirmed(true);
     } catch (err) {
       console.error('Prepare hebdo error:', err);
-      toast.error('Erreur preparation des dossiers Dropbox');
+      toast.error('Erreur préparation des dossiers Dropbox');
     } finally {
       setPreparingFolders(false);
     }
   };
 
-  // Image drop - now supports multiple files
   const onDrop = useCallback((accepted: File[], rejected: any[]) => {
     if (rejected.length > 0) {
       rejected.forEach((r: any) => {
-        const errors = r.errors?.map((e: any) => e.message).join(', ') || 'Fichier refuse';
+        const errors = r.errors?.map((e: any) => e.message).join(', ') || 'Fichier refusé';
         toast.error(`${r.file?.name}: ${errors}`);
       });
     }
     if (accepted.length > 0) {
-      // Add new files to existing ones
-      setImageFiles(prev => [...prev, ...accepted]);
-
-      // Create previews for new files
-      accepted.forEach(file => {
+      setImageFiles((prev) => [...prev, ...accepted]);
+      accepted.forEach((file) => {
         const reader = new FileReader();
         reader.onload = () => {
-          setImagePreviews(prev => [...prev, reader.result as string]);
+          setImagePreviews((prev) => [...prev, reader.result as string]);
         };
         reader.readAsDataURL(file);
       });
@@ -166,83 +164,68 @@ export function DeliveryFormPage() {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'image/*': ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic', '.heif', '.tiff', '.tif', '.bmp', '.avif'] },
+    accept: {
+      'image/*': [
+        '.jpg', '.jpeg', '.png', '.webp', '.gif',
+        '.heic', '.heif', '.tiff', '.tif', '.bmp', '.avif',
+      ],
+    },
     maxFiles: 20,
     maxSize: 25 * 1024 * 1024,
   });
 
-  // Remove a specific image
   const removeImage = (index: number) => {
-    setImageFiles(prev => prev.filter((_, i) => i !== index));
-    setImagePreviews(prev => prev.filter((_, i) => i !== index));
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Update metadata field
   const updateMetadata = (key: string, value: any) => {
-    setMetadata(prev => ({
-      ...prev,
-      [key]: value
-    }));
+    setMetadata((prev) => ({ ...prev, [key]: value }));
   };
 
-  // Get the body field key (usually 'corps')
   const getBodyFieldKey = () => {
     if (!selectedType?.fields_config) return null;
-    const bodyField = selectedType.fields_config.find(f => f.key === 'corps');
-    return bodyField ? 'corps' : null;
+    return selectedType.fields_config.find((f) => f.key === 'corps') ? 'corps' : null;
   };
 
-  // Sign count
   const bodyFieldKey = getBodyFieldKey();
   const bodyText = bodyCorrected || (bodyFieldKey ? metadata[bodyFieldKey] || '' : '');
   const signCount = bodyText.length;
   const signLimit = selectedType?.sign_limit || 0;
   const signOverLimit = signLimit > 0 && signCount > signLimit;
+  const signRatio = signLimit > 0 ? Math.min(1, signCount / signLimit) : 0;
 
-  // Correction
   const handleCorrection = async () => {
-    const bodyFieldKey = getBodyFieldKey();
-    if (!bodyFieldKey || !metadata[bodyFieldKey]?.trim()) return;
+    const k = getBodyFieldKey();
+    if (!k || !metadata[k]?.trim()) return;
 
     setCorrecting(true);
     try {
-      const result = await correctText(metadata[bodyFieldKey]);
+      const result = await correctText(metadata[k]);
       setCorrection(result);
       setBodyCorrected(result.correctedText);
       setStep('correction');
     } catch (err) {
       console.error('Correction error:', err);
-      toast.error('Correction automatique indisponible — texte original conserve');
-      // If correction fails, use original text
-      setBodyCorrected(metadata[bodyFieldKey]);
+      toast.error('Correction automatique indisponible — texte original conservé');
+      setBodyCorrected(metadata[k]);
       setStep('correction');
     } finally {
       setCorrecting(false);
     }
   };
 
-  // Get title from metadata
   const getTitle = () => {
     if (!selectedType) return '';
-
-    // For Sujet de couv and Interview 3000: use artiste
-    if (selectedType.name === 'Sujet de couv' || selectedType.name === 'Interview 3000') {
+    if (selectedType.name === 'Sujet de couv' || selectedType.name === 'Interview 3000')
       return metadata.artiste || '';
-    }
-    // For Disque de la semaine: use album or artiste
-    if (selectedType.name === 'Disque de la semaine') {
+    if (selectedType.name === 'Disque de la semaine')
       return metadata.album || metadata.artiste || '';
-    }
-    // For Chroniques: use artiste
-    if (selectedType.name === 'Chroniques') {
-      return metadata.artiste || '';
-    }
-    // Fallback: use first text field
-    const firstTextField = selectedType.fields_config.find(f => f.type === 'text');
+    if (selectedType.name === 'Chroniques') return metadata.artiste || '';
+    const firstTextField = selectedType.fields_config.find((f) => f.type === 'text');
     return firstTextField ? metadata[firstTextField.key] || '' : '';
   };
 
-  // Submit
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!selectedType || !nextHebdo) return;
@@ -254,29 +237,18 @@ export function DeliveryFormPage() {
     formData.append('paper_type_id', selectedType.id);
     formData.append('hebdo_id', nextHebdo.id);
 
-    // Add metadata with corrected body if available
     const finalMetadata = { ...metadata };
-    if (bodyCorrected && bodyFieldKey) {
-      finalMetadata[bodyFieldKey] = bodyCorrected;
-    }
+    if (bodyCorrected && bodyFieldKey) finalMetadata[bodyFieldKey] = bodyCorrected;
     formData.append('metadata', JSON.stringify(finalMetadata));
 
-    // Add title derived from metadata
     const title = getTitle();
     formData.append('title', title);
-
-    // Add all images
-    imageFiles.forEach(file => {
-      formData.append('images', file);
-    });
+    imageFiles.forEach((file) => formData.append('images', file));
 
     try {
       if (isAdminEdit && editId) {
-        // Admin edit: simple metadata update (no Dropbox re-upload)
         const finalMeta = { ...metadata };
-        if (bodyCorrected && bodyFieldKey) {
-          finalMeta[bodyFieldKey] = bodyCorrected;
-        }
+        if (bodyCorrected && bodyFieldKey) finalMeta[bodyFieldKey] = bodyCorrected;
         await adminUpdateDelivery(editId, finalMeta, getTitle());
         setSubmitSuccess(true);
       } else if (isEditMode && editId) {
@@ -297,10 +269,6 @@ export function DeliveryFormPage() {
     }
   };
 
-  // Validation: track which fields the user tried to submit
-  const [showValidation, setShowValidation] = useState(false);
-
-  // Get missing required fields
   const getMissingFields = (): string[] => {
     if (!selectedType?.fields_config) return [];
     const missing: string[] = [];
@@ -308,14 +276,13 @@ export function DeliveryFormPage() {
     for (const field of selectedType.fields_config) {
       if (!field.required) continue;
 
-      // alternateKey: this field OR the alternate field must be filled
       if (field.alternateKey) {
-        const altField = selectedType.fields_config.find(f => f.key === field.alternateKey);
+        const altField = selectedType.fields_config.find((f) => f.key === field.alternateKey);
         const hasAlt = altField?.type === 'images'
-          ? (imageFiles.length > 0 || (isEditMode && editDelivery?.image_filename))
+          ? imageFiles.length > 0 || (isEditMode && !!editDelivery?.image_filename)
           : !!metadata[field.alternateKey]?.trim();
         const hasCurrent = field.type === 'images'
-          ? (imageFiles.length >= (field.min || 1) || (isEditMode && !!editDelivery?.image_filename))
+          ? imageFiles.length >= (field.min || 1) || (isEditMode && !!editDelivery?.image_filename)
           : !!metadata[field.key]?.trim();
         if (hasCurrent || hasAlt) continue;
         missing.push(`${field.label} ou ${altField?.label || field.alternateKey}`);
@@ -324,37 +291,31 @@ export function DeliveryFormPage() {
 
       if (field.type === 'images') {
         const minImages = field.min || 1;
-        // In edit mode, existing images count (user already uploaded them before)
         const hasExistingImages = isEditMode && editDelivery?.image_filename;
         if (imageFiles.length < minImages && !hasExistingImages) {
           missing.push(`${field.label} (${minImages} minimum)`);
         }
       } else if (field.type === 'stars') {
         const rating = parseFloat(metadata[field.key]);
-        if (!rating || rating < 0.5) {
-          missing.push(field.label);
-        }
+        if (!rating || rating < 0.5) missing.push(field.label);
       } else {
-        if (!metadata[field.key]?.trim()) {
-          missing.push(field.label);
-        }
+        if (!metadata[field.key]?.trim()) missing.push(field.label);
       }
     }
 
     return missing;
   };
 
-  const isFieldMissing = (field: { key: string; type: string; required: boolean; min?: number; alternateKey?: string }) => {
+  const isFieldMissing = (field: FieldConfig) => {
     if (!field.required || !showValidation) return false;
 
-    // alternateKey: not missing if the alternate field is filled
     if (field.alternateKey && selectedType) {
-      const altField = selectedType.fields_config.find(f => f.key === field.alternateKey);
+      const altField = selectedType.fields_config.find((f) => f.key === field.alternateKey);
       const hasAlt = altField?.type === 'images'
-        ? (imageFiles.length > 0 || (isEditMode && !!editDelivery?.image_filename))
+        ? imageFiles.length > 0 || (isEditMode && !!editDelivery?.image_filename)
         : !!metadata[field.alternateKey]?.trim();
       const hasCurrent = field.type === 'images'
-        ? (imageFiles.length >= (field.min || 1) || (isEditMode && !!editDelivery?.image_filename))
+        ? imageFiles.length >= (field.min || 1) || (isEditMode && !!editDelivery?.image_filename)
         : !!metadata[field.key]?.trim();
       return !hasCurrent && !hasAlt;
     }
@@ -363,12 +324,13 @@ export function DeliveryFormPage() {
       const hasExistingImages = isEditMode && editDelivery?.image_filename;
       return imageFiles.length < (field.min || 1) && !hasExistingImages;
     }
-    if (field.type === 'stars') { const r = parseFloat(metadata[field.key]); return !r || r < 0.5; }
+    if (field.type === 'stars') {
+      const r = parseFloat(metadata[field.key]);
+      return !r || r < 0.5;
+    }
     return !metadata[field.key]?.trim();
   };
 
-
-  // Handle correction click with validation
   const handleCorrectionClick = () => {
     const missing = getMissingFields();
     if (missing.length > 0) {
@@ -382,685 +344,1579 @@ export function DeliveryFormPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-rs-red border-t-transparent" />
+        <div
+          className="animate-spin rounded-full h-8 w-8 border-2"
+          style={{ borderColor: 'var(--rs-red)', borderTopColor: 'transparent' }}
+        />
       </div>
     );
   }
 
   // Success screen
   if (submitSuccess) {
-    const title = getTitle();
-    return (
-      <div className="max-w-lg mx-auto text-center py-16">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-6">
-          <CheckCircle size={32} className="text-green-600" />
-        </div>
-        <h1 className="text-2xl font-bold text-rs-black mb-2">
-          {isEditMode ? 'Papier modifie !' : 'Papier livre !'}
-        </h1>
-        <p className="text-gray-500 mb-6">
-          {isEditMode
-            ? <>Votre papier <strong>{title}</strong> a bien ete mis a jour dans Dropbox.</>
-            : <>Votre papier <strong>{title}</strong> a bien ete envoye dans Dropbox. L'equipe a ete notifiee par email.</>
-          }
-        </p>
-        {driveUrl && (
-          <a
-            href={driveUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2.5 rounded-lg transition-colors mb-4"
-          >
-            <FileText size={18} />
-            Voir dans Dropbox
-          </a>
-        )}
-        <div>
-          <button
-            onClick={() => navigate('/')}
-            className="text-sm text-gray-500 hover:text-rs-red transition-colors"
-          >
-            Retour au dashboard
-          </button>
-        </div>
-      </div>
-    );
+    return <SuccessScreen title={getTitle()} driveUrl={driveUrl} isEditMode={isEditMode} />;
   }
 
-  // Steps
-  const steps: { key: Step; label: string }[] = [
-    { key: 'type', label: 'Type' },
-    { key: 'content', label: 'Contenu' },
-    { key: 'correction', label: 'Correction' },
-    { key: 'review', label: 'Envoi' },
-  ];
-
-  const stepIndex = steps.findIndex((s) => s.key === step);
+  const stepIndex = STEPS.findIndex((s) => s.key === step);
 
   return (
-    <div className="max-w-3xl mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-rs-black">
-          {isEditMode ? 'Modifier un papier' : 'Livrer un papier'}
-        </h1>
-        {nextHebdo && (
-          <p className="text-gray-500 text-sm mt-1">
-            {nextHebdo.label} — Numero {nextHebdo.numero}
-          </p>
-        )}
-      </div>
-
-      {/* Step indicator */}
-      <div className="flex items-center gap-2 mb-8">
-        {steps.map((s, i) => (
-          <div key={s.key} className="flex items-center gap-2 flex-1">
-            <div
-              className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium transition-colors ${
-                i <= stepIndex
-                  ? 'bg-rs-red text-white'
-                  : 'bg-gray-200 text-gray-500'
-              }`}
-            >
-              {i + 1}
+    <div>
+      {/* Header (eyebrow + step title + stepper) */}
+      <div
+        style={{
+          padding: '4px 0 18px',
+          marginBottom: 24,
+          borderBottom: '1px solid var(--border)',
+        }}
+      >
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <div>
+            <div className="eyebrow">
+              {isEditMode ? 'Modifier un papier' : 'Livrer un papier'}
             </div>
-            <span className={`text-sm hidden sm:block ${i <= stepIndex ? 'text-rs-black font-medium' : 'text-gray-400'}`}>
-              {s.label}
-            </span>
-            {i < steps.length - 1 && (
-              <div className={`flex-1 h-px ${i < stepIndex ? 'bg-rs-red' : 'bg-gray-200'}`} />
-            )}
+            <div
+              className="serif"
+              style={{ fontSize: 26, lineHeight: 1.1, marginTop: 2 }}
+            >
+              {STEPS[stepIndex].label}
+            </div>
           </div>
-        ))}
-      </div>
-
-      {/* Step 1: Hebdo Confirmation + Paper Type */}
-      {step === 'type' && (
-        <div className="space-y-6">
-          {/* Hebdo display — auto-detected, journalist just confirms */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-rs-black mb-2">Numero en cours</h2>
-
-            {!nextHebdo ? (
-              <div className="text-center py-6 text-gray-400 text-sm">
-                Aucun numero programme. Contactez l'admin.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* Hebdo card */}
-                <div className={`flex items-center gap-4 p-5 rounded-lg border-2 ${
-                  hebdoConfirmed ? 'border-green-500 bg-green-50' : 'border-rs-red bg-rs-red/5'
-                }`}>
-                  <Calendar size={28} className={hebdoConfirmed ? 'text-green-600' : 'text-rs-red'} />
-                  <div className="flex-1">
-                    <span className="text-xl font-bold text-rs-black">{nextHebdo.label}</span>
-                    {nextHebdo.start_date && nextHebdo.end_date && (
-                      <p className="text-sm text-gray-600 mt-0.5">
-                        du {format(new Date(nextHebdo.start_date + 'T00:00:00'), 'd', { locale: fr })} au{' '}
-                        {format(new Date(nextHebdo.end_date + 'T00:00:00'), 'd MMMM yyyy', { locale: fr })}
-                      </p>
-                    )}
-                  </div>
-                  {hebdoConfirmed && (
-                    <CheckCircle size={24} className="text-green-600 shrink-0" />
-                  )}
-                </div>
-
-                {/* Confirm button */}
-                {!hebdoConfirmed && (
-                  <button
-                    onClick={handleConfirmHebdo}
-                    disabled={preparingFolders}
-                    className="w-full flex items-center justify-center gap-2 bg-rs-red hover:bg-rs-red-dark disabled:opacity-50 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
-                  >
-                    {preparingFolders ? (
-                      <>
-                        <Loader2 size={18} className="animate-spin" />
-                        Preparation des dossiers...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle size={18} />
-                        Confirmer ce numero
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Paper type selector — only visible once hebdo is confirmed */}
-          {hebdoConfirmed && (
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-rs-black mb-4">Type de papier</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {paperTypes.map((pt) => (
-                  <button
-                    key={pt.id}
-                    onClick={() => {
-                      setSelectedType(pt);
-                      setMetadata({});
-                      setImageFiles([]);
-                      setImagePreviews([]);
-                      setBodyCorrected('');
-                      setStep('content');
-                    }}
-                    className={`text-left p-4 rounded-lg border-2 transition-all hover:border-rs-red hover:shadow-sm ${
-                      selectedType?.id === pt.id
-                        ? 'border-rs-red bg-rs-red/5'
-                        : 'border-gray-200'
-                    }`}
-                  >
-                    <p className="font-medium text-rs-black">{pt.name}</p>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Limite : {pt.sign_limit.toLocaleString()} signes
-                    </p>
-                  </button>
-                ))}
-              </div>
+          {nextHebdo && (
+            <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+              {nextHebdo.label}
+              {nextHebdo.start_date && nextHebdo.end_date && (
+                <>
+                  {' · du '}
+                  {format(new Date(nextHebdo.start_date + 'T00:00:00'), 'd', { locale: fr })}
+                  {' au '}
+                  {format(new Date(nextHebdo.end_date + 'T00:00:00'), 'd MMMM yyyy', {
+                    locale: fr,
+                  })}
+                </>
+              )}
             </div>
           )}
         </div>
-      )}
-
-      {/* Step 2: Content - Dynamic fields based on paper type */}
-      {step === 'content' && selectedType && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-rs-black">Contenu du papier</h2>
-              <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                {selectedType.name}
-              </span>
-            </div>
-
-            <div className="space-y-4">
-              {/* Render dynamic fields based on fields_config */}
-              {selectedType.fields_config?.map((field) => {
-                // Handle image fields separately
-                if (field.type === 'images') {
-                  const missing = isFieldMissing(field);
-                  const isOptionalViaAlternate = !!field.alternateKey;
-                  return (
-                    <div key={field.key}>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        {field.label} {field.required && !isOptionalViaAlternate && <span className="text-rs-red">*</span>}
-                      </label>
-
-                      {/* Display uploaded images */}
-                      {imagePreviews.length > 0 && (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
-                          {imagePreviews.map((preview, index) => (
-                            <div key={index} className="relative">
-                              <img
-                                src={preview}
-                                alt={`Preview ${index + 1}`}
-                                className="w-full h-32 object-cover rounded-lg border border-gray-200"
-                              />
-                              <button
-                                onClick={() => removeImage(index)}
-                                className="absolute -top-2 -right-2 bg-rs-red text-white rounded-full p-1 hover:bg-rs-red-dark transition-colors"
-                              >
-                                <X size={14} />
-                              </button>
-                              <p className="text-xs text-gray-500 mt-1 truncate">{imageFiles[index]?.name}</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Dropzone for adding more images */}
-                      <div
-                        {...getRootProps()}
-                        className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-                          isDragActive
-                            ? 'border-rs-red bg-rs-red/5'
-                            : missing
-                              ? 'border-red-400 bg-red-50'
-                              : 'border-gray-300 hover:border-rs-red'
-                        }`}
-                      >
-                        <input {...getInputProps()} />
-                        <Image size={32} className="mx-auto mb-2 text-gray-400" />
-                        <p className="text-sm text-gray-500">
-                          Glissez des images ici ou <span className="text-rs-red font-medium">cliquez pour choisir</span>
-                        </p>
-                        <p className="text-xs text-gray-400 mt-1">
-                          {field.min ? `${field.min} photos minimum` : 'JPG, PNG, WebP — Max 10 Mo par fichier'}
-                        </p>
-                        {isEditMode && editDelivery?.image_filename && imageFiles.length === 0 && (
-                          <p className="text-xs text-blue-600 mt-2">
-                            Images existantes : {editDelivery.image_filename}
-                            <br />
-                            <span className="text-gray-400">Ajoutez de nouvelles images pour les remplacer</span>
-                          </p>
-                        )}
-                        {imagePreviews.length > 0 && (
-                          <p className="text-xs text-green-600 mt-2">
-                            {imagePreviews.length} photo{imagePreviews.length > 1 ? 's' : ''} ajoutée{imagePreviews.length > 1 ? 's' : ''}
-                          </p>
-                        )}
-                      </div>
-                      {missing && (
-                        <p className="text-xs text-red-600 mt-1">
-                          {field.alternateKey
-                            ? 'Ajoutez des photos ou renseignez le lien Drive ci-dessus'
-                            : field.min ? `${field.min} photo(s) minimum requise(s)` : 'Au moins une photo est requise'}
-                        </p>
-                      )}
-                    </div>
-                  );
-                }
-
-                // Handle text fields
-                if (field.type === 'text') {
-                  const missing = isFieldMissing(field);
-                  return (
-                    <div key={field.key}>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        {field.label} {field.required && <span className="text-rs-red">*</span>}
-                      </label>
-                      <input
-                        type="text"
-                        value={metadata[field.key] || ''}
-                        onChange={(e) => updateMetadata(field.key, e.target.value)}
-                        className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-rs-red focus:border-transparent text-sm ${
-                          missing ? 'border-red-400 bg-red-50' : 'border-gray-300'
-                        }`}
-                        required={field.required}
-                      />
-                      {missing && <p className="text-xs text-red-600 mt-1">Ce champ est obligatoire</p>}
-                    </div>
-                  );
-                }
-
-                // Handle URL fields
-                if (field.type === 'url') {
-                  const missing = isFieldMissing(field);
-                  const isOptionalViaAlternate = !!field.alternateKey;
-                  return (
-                    <div key={field.key}>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        {field.label} {field.required && !isOptionalViaAlternate && <span className="text-rs-red">*</span>}
-                        {isOptionalViaAlternate && <span className="text-gray-400 text-xs ml-1">(ou ajoutez des photos)</span>}
-                      </label>
-                      <input
-                        type="url"
-                        value={metadata[field.key] || ''}
-                        onChange={(e) => updateMetadata(field.key, e.target.value)}
-                        placeholder="https://..."
-                        className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-rs-red focus:border-transparent text-sm ${
-                          missing ? 'border-red-400 bg-red-50' : 'border-gray-300'
-                        }`}
-                      />
-                      {missing && <p className="text-xs text-red-600 mt-1">Renseignez un lien ou ajoutez des photos ci-dessous</p>}
-                    </div>
-                  );
-                }
-
-                // Handle star rating fields (half-star support via left/right click zones)
-                if (field.type === 'stars') {
-                  const maxStars = field.max || 5;
-                  const currentRating = parseFloat(metadata[field.key]) || 0;
-                  const missing = isFieldMissing(field);
-
-                  const handleStarClick = (starIndex: number, e: React.MouseEvent<HTMLButtonElement>) => {
-                    // Detect if click is on left half or right half of the star
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const clickX = e.clientX - rect.left;
-                    const isLeftHalf = clickX < rect.width / 2;
-
-                    const newRating = isLeftHalf ? starIndex - 0.5 : starIndex;
-
-                    // If clicking same value, reset to 0
-                    if (newRating === currentRating) {
-                      updateMetadata(field.key, '0');
-                    } else {
-                      updateMetadata(field.key, String(newRating));
-                    }
-                  };
-
-                  return (
-                    <div key={field.key}>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        {field.label} {field.required && <span className="text-rs-red">*</span>}
-                      </label>
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: maxStars }, (_, i) => i + 1).map((star) => {
-                          const isFull = currentRating >= star;
-                          const isHalf = !isFull && currentRating >= star - 0.5;
-                          return (
-                            <button
-                              key={star}
-                              type="button"
-                              onClick={(e) => handleStarClick(star, e)}
-                              className="p-0.5 transition-transform hover:scale-110 cursor-pointer"
-                            >
-                              {isHalf ? (
-                                <div className="relative" style={{ width: 32, height: 32 }}>
-                                  <Star size={32} className="text-gray-300 absolute inset-0" />
-                                  <div className="absolute inset-0 overflow-hidden" style={{ width: '50%' }}>
-                                    <Star size={32} className="text-yellow-400 fill-yellow-400" />
-                                  </div>
-                                </div>
-                              ) : (
-                                <Star
-                                  size={32}
-                                  className={isFull
-                                    ? 'text-yellow-400 fill-yellow-400'
-                                    : 'text-gray-300'}
-                                />
-                              )}
-                            </button>
-                          );
-                        })}
-                        {currentRating > 0 && (
-                          <span className="ml-3 text-sm font-medium text-gray-600">
-                            {currentRating % 1 === 0 ? currentRating : currentRating.toFixed(1)}/{maxStars}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-gray-400 mt-1">Clic gauche de l'etoile = demi, clic droit = entiere</p>
-                      {missing && <p className="text-xs text-red-600 mt-1">Veuillez selectionner une note</p>}
-                    </div>
-                  );
-                }
-
-                // Handle textarea fields
-                if (field.type === 'textarea') {
-                  const isBodyField = field.key === 'corps';
-                  const fieldValue = metadata[field.key] || '';
-                  const missing = isFieldMissing(field);
-
-                  return (
-                    <div key={field.key}>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-sm font-medium text-gray-700">
-                          {field.label} {field.required && <span className="text-rs-red">*</span>}
-                        </label>
-                        {isBodyField && (
-                          <span
-                            className={`text-xs font-mono px-2 py-0.5 rounded ${
-                              signOverLimit
-                                ? 'bg-red-100 text-red-700'
-                                : 'bg-gray-100 text-gray-600'
-                            }`}
-                          >
-                            {fieldValue.length.toLocaleString()} / {selectedType.sign_limit.toLocaleString()} signes
-                          </span>
-                        )}
-                      </div>
-                      <textarea
-                        value={fieldValue}
-                        onChange={(e) => updateMetadata(field.key, e.target.value)}
-                        rows={isBodyField ? 16 : 4}
-                        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-rs-red focus:border-transparent text-sm leading-relaxed resize-y ${
-                          missing ? 'border-red-400 bg-red-50' : 'border-gray-300'
-                        }`}
-                        required={field.required}
-                      />
-                      {missing && <p className="text-xs text-red-600 mt-1">Ce champ est obligatoire</p>}
-                      {isBodyField && signOverLimit && (
-                        <p className="text-xs text-red-600 mt-1">
-                          Depassement de {(fieldValue.length - selectedType.sign_limit).toLocaleString()} signes
-                        </p>
-                      )}
-                    </div>
-                  );
-                }
-
-                return null;
-              })}
-            </div>
-          </div>
-
-          {/* Navigation */}
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => setStep('type')}
-              className="flex items-center gap-1 text-gray-500 hover:text-rs-black text-sm font-medium transition-colors"
-            >
-              <ChevronLeft size={18} />
-              Type de papier
-            </button>
-            <button
-              onClick={handleCorrectionClick}
-              disabled={correcting}
-              className="flex items-center gap-2 bg-rs-red hover:bg-rs-red-dark disabled:opacity-50 text-white font-semibold px-6 py-2.5 rounded-lg transition-colors"
-            >
-              {correcting ? (
-                <>
-                  <Loader2 size={18} className="animate-spin" />
-                  Correction en cours...
-                </>
-              ) : (
-                <>
-                  <Sparkles size={18} />
-                  Corriger le texte
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 3: Correction review */}
-      {step === 'correction' && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-rs-black mb-4">Texte corrige</h2>
-
-            {correction && correction.corrections.length > 0 && (
-              <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm font-medium text-blue-800 mb-2">
-                  {correction.corrections.length} correction{correction.corrections.length > 1 ? 's' : ''} trouvee{correction.corrections.length > 1 ? 's' : ''}
-                </p>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {correction.corrections.map((c, i) => (
-                    <div key={i} className="text-xs">
-                      <span className="line-through text-red-600">{c.original}</span>
-                      {' → '}
-                      <span className="text-green-700 font-medium">{c.corrected}</span>
-                      <span className="text-gray-500 ml-2">({c.type})</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-sm font-medium text-gray-700">
-                Texte final (modifiable)
-              </label>
-              <span
-                className={`text-xs font-mono px-2 py-0.5 rounded ${
-                  signOverLimit ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+        <div className="rs-stepper-h">
+          {STEPS.map((s, i) => (
+            <div key={s.key} className="contents">
+              <div
+                className={`seg ${i < stepIndex ? 'done' : ''} ${
+                  i === stepIndex ? 'active' : ''
                 }`}
               >
-                {bodyCorrected.length.toLocaleString()} / {selectedType?.sign_limit.toLocaleString()} signes
-              </span>
+                <span className="num">
+                  {i < stepIndex ? <Check size={13} /> : i + 1}
+                </span>
+                <span className="lbl hidden sm:inline">{s.label}</span>
+              </div>
+              {i < STEPS.length - 1 && (
+                <div className={`bar ${i < stepIndex ? 'done' : ''}`} />
+              )}
             </div>
-            <textarea
-              value={bodyCorrected}
-              onChange={(e) => setBodyCorrected(e.target.value)}
-              rows={16}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rs-red focus:border-transparent text-sm leading-relaxed resize-y"
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => setStep('content')}
-              className="flex items-center gap-1 text-gray-500 hover:text-rs-black text-sm font-medium transition-colors"
-            >
-              <ChevronLeft size={18} />
-              Modifier le contenu
-            </button>
-            <button
-              onClick={() => setStep('review')}
-              className="flex items-center gap-2 bg-rs-red hover:bg-rs-red-dark text-white font-semibold px-6 py-2.5 rounded-lg transition-colors"
-            >
-              Verifier et envoyer
-              <ChevronRight size={18} />
-            </button>
-          </div>
+          ))}
         </div>
-      )}
+      </div>
 
-      {/* Step 4: Review & Submit */}
-      {step === 'review' && selectedType && (
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-rs-black mb-4">Recapitulatif</h2>
+      {/* Two-column layout: main + helper */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
+        <div>
+          {step === 'type' && (
+            <StepTypeView
+              nextHebdo={nextHebdo}
+              hebdoConfirmed={hebdoConfirmed}
+              preparingFolders={preparingFolders}
+              onConfirm={handleConfirmHebdo}
+              paperTypes={paperTypes}
+              selectedType={selectedType}
+              onSelectType={(pt) => {
+                setSelectedType(pt);
+                setMetadata({});
+                setImageFiles([]);
+                setImagePreviews([]);
+                setBodyCorrected('');
+                setStep('content');
+              }}
+            />
+          )}
 
-            <dl className="space-y-3">
-              <div className="flex justify-between py-2 border-b border-gray-100">
-                <dt className="text-sm text-gray-500">Type</dt>
-                <dd className="text-sm font-medium text-rs-black">{selectedType.name}</dd>
-              </div>
-              <div className="flex justify-between py-2 border-b border-gray-100">
-                <dt className="text-sm text-gray-500">Hebdo</dt>
-                <dd className="text-sm font-medium text-rs-black">{nextHebdo?.label}</dd>
-              </div>
+          {step === 'content' && selectedType && (
+            <StepContentView
+              selectedType={selectedType}
+              metadata={metadata}
+              updateMetadata={updateMetadata}
+              isFieldMissing={isFieldMissing}
+              imagePreviews={imagePreviews}
+              imageFiles={imageFiles}
+              removeImage={removeImage}
+              getRootProps={getRootProps}
+              getInputProps={getInputProps}
+              isDragActive={isDragActive}
+              isEditMode={isEditMode}
+              editDelivery={editDelivery}
+              signCount={signCount}
+              signLimit={signLimit}
+              signOverLimit={signOverLimit}
+            />
+          )}
 
-              {/* Display all metadata fields */}
-              {selectedType.fields_config?.map((field) => {
-                if (field.type === 'images') {
-                  return (
-                    <div key={field.key} className="flex justify-between py-2 border-b border-gray-100">
-                      <dt className="text-sm text-gray-500">{field.label}</dt>
-                      <dd className="text-sm font-medium text-rs-black">
-                        {imageFiles.length} photo{imageFiles.length > 1 ? 's' : ''}
-                      </dd>
-                    </div>
-                  );
-                }
+          {step === 'correction' && selectedType && (
+            <StepCorrectionView
+              correction={correction}
+              bodyCorrected={bodyCorrected}
+              onChangeBody={setBodyCorrected}
+              signLimit={signLimit}
+              signOverLimit={signOverLimit}
+            />
+          )}
 
-                const value = field.key === 'corps' && bodyCorrected ? bodyCorrected : metadata[field.key];
-                if (!value) return null;
+          {step === 'review' && selectedType && (
+            <StepReviewView
+              selectedType={selectedType}
+              nextHebdo={nextHebdo}
+              metadata={metadata}
+              bodyCorrected={bodyCorrected}
+              imagePreviews={imagePreviews}
+              imageFiles={imageFiles}
+              signCount={signCount}
+              signLimit={signLimit}
+              signOverLimit={signOverLimit}
+            />
+          )}
 
-                if (field.type === 'stars') {
-                  const rating = parseFloat(value) || 0;
-                  const maxStars = field.max || 5;
-                  return (
-                    <div key={field.key} className="flex justify-between py-2 border-b border-gray-100">
-                      <dt className="text-sm text-gray-500">{field.label}</dt>
-                      <dd className="flex items-center gap-0.5">
-                        {Array.from({ length: maxStars }, (_, i) => {
-                          const starNum = i + 1;
-                          const isFull = rating >= starNum;
-                          const isHalf = !isFull && rating >= starNum - 0.5;
-                          return isHalf ? (
-                            <div key={i} className="relative" style={{ width: 16, height: 16 }}>
-                              <Star size={16} className="text-gray-300 absolute inset-0" />
-                              <div className="absolute inset-0 overflow-hidden" style={{ width: '50%' }}>
-                                <Star size={16} className="text-yellow-400 fill-yellow-400" />
-                              </div>
-                            </div>
-                          ) : (
-                            <Star
-                              key={i}
-                              size={16}
-                              className={isFull ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}
-                            />
-                          );
-                        })}
-                        <span className="ml-2 text-sm font-medium text-rs-black">
-                          {rating % 1 === 0 ? rating : rating.toFixed(1)}/{maxStars}
-                        </span>
-                      </dd>
-                    </div>
-                  );
-                }
+          {/* Footer actions */}
+          <div
+            className="flex items-center justify-between flex-wrap gap-3"
+            style={{
+              borderTop: '1px solid var(--border)',
+              paddingTop: 18,
+              marginTop: 24,
+            }}
+          >
+            {step === 'type' ? (
+              <Link to="/" className="rs-btn ghost">
+                <X size={16} />
+                Annuler
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  if (step === 'content') setStep('type');
+                  else if (step === 'correction') setStep('content');
+                  else if (step === 'review') setStep('correction');
+                }}
+                className="rs-btn ghost"
+              >
+                <ChevronLeft size={16} />
+                {step === 'content' && 'Type de papier'}
+                {step === 'correction' && 'Modifier le texte'}
+                {step === 'review' && 'Corriger encore'}
+              </button>
+            )}
 
-                if (field.type === 'textarea') {
-                  return (
-                    <div key={field.key} className="py-2 border-b border-gray-100">
-                      <dt className="text-sm text-gray-500 mb-1">{field.label}</dt>
-                      <dd className="text-sm text-rs-black whitespace-pre-wrap max-h-32 overflow-y-auto">
-                        {value.substring(0, 200)}{value.length > 200 ? '...' : ''}
-                      </dd>
-                    </div>
-                  );
-                }
+            {step === 'content' && (
+              <button
+                type="button"
+                onClick={handleCorrectionClick}
+                disabled={correcting}
+                className="rs-btn primary lg"
+              >
+                {correcting ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Correction en cours…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={16} />
+                    Corriger le texte avec l'IA
+                  </>
+                )}
+              </button>
+            )}
 
-                return (
-                  <div key={field.key} className="flex justify-between py-2 border-b border-gray-100">
-                    <dt className="text-sm text-gray-500">{field.label}</dt>
-                    <dd className="text-sm font-medium text-rs-black truncate max-w-[200px]">
-                      {field.type === 'url' ? (
-                        <span className="text-blue-600">{value}</span>
-                      ) : (
-                        value
-                      )}
-                    </dd>
-                  </div>
-                );
-              })}
+            {step === 'correction' && (
+              <button
+                type="button"
+                onClick={() => setStep('review')}
+                className="rs-btn primary lg"
+              >
+                Tout valider et vérifier
+                <ChevronRight size={16} />
+              </button>
+            )}
 
-              <div className="flex justify-between py-2 border-b border-gray-100">
-                <dt className="text-sm text-gray-500">Signes</dt>
-                <dd className={`text-sm font-medium ${signOverLimit ? 'text-red-600' : 'text-rs-black'}`}>
-                  {signCount.toLocaleString()} / {signLimit.toLocaleString()}
-                </dd>
-              </div>
-            </dl>
-
-            {/* Image previews */}
-            {imagePreviews.length > 0 && (
-              <div className="mt-4">
-                <p className="text-sm text-gray-500 mb-2">Images jointes</p>
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                  {imagePreviews.map((preview, index) => (
-                    <img
-                      key={index}
-                      src={preview}
-                      alt={`Preview ${index + 1}`}
-                      className="w-full h-20 object-cover rounded-lg border border-gray-200"
-                    />
-                  ))}
-                </div>
-              </div>
+            {step === 'review' && (
+              <button
+                type="button"
+                onClick={handleSubmit as unknown as () => void}
+                disabled={submitting}
+                className="rs-btn primary lg"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Envoi en cours…
+                  </>
+                ) : (
+                  <>
+                    <Send size={16} />
+                    {isEditMode ? 'Enregistrer les modifications' : 'Livrer le papier'}
+                  </>
+                )}
+              </button>
             )}
           </div>
 
           {submitError && (
-            <div className="flex items-center gap-2 bg-red-50 text-red-700 text-sm px-4 py-3 rounded-lg">
+            <div className="rs-banner red mt-4 flex items-center gap-2">
               <AlertCircle size={16} />
-              {submitError}
+              <span>{submitError}</span>
             </div>
           )}
+        </div>
 
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => setStep('correction')}
-              className="flex items-center gap-1 text-gray-500 hover:text-rs-black text-sm font-medium transition-colors"
-            >
-              <ChevronLeft size={18} />
-              Texte corrige
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold px-8 py-3 rounded-lg transition-colors"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 size={18} className="animate-spin" />
-                  Envoi en cours...
-                </>
-              ) : (
-                <>
-                  <Send size={18} />
-                  {isEditMode ? 'Enregistrer les modifications' : 'Livrer le papier'}
-                </>
-              )}
-            </button>
+        {/* Helper sidebar */}
+        <aside className="lg:sticky lg:top-24">
+          <HelperPanel
+            step={step}
+            selectedType={selectedType}
+            nextHebdo={nextHebdo}
+            hebdoConfirmed={hebdoConfirmed}
+            signCount={signCount}
+            signLimit={signLimit}
+            signRatio={signRatio}
+            signOverLimit={signOverLimit}
+            correction={correction}
+          />
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Step 1: Type de papier
+   ============================================================ */
+
+interface StepTypeViewProps {
+  nextHebdo: HebdoConfig | null;
+  hebdoConfirmed: boolean;
+  preparingFolders: boolean;
+  onConfirm: () => void;
+  paperTypes: PaperType[];
+  selectedType: PaperType | null;
+  onSelectType: (pt: PaperType) => void;
+}
+
+function StepTypeView({
+  nextHebdo,
+  hebdoConfirmed,
+  preparingFolders,
+  onConfirm,
+  paperTypes,
+  selectedType,
+  onSelectType,
+}: StepTypeViewProps) {
+  return (
+    <div className="space-y-4">
+      {/* Hebdo confirmation */}
+      <div className="rs-card" style={{ padding: '24px 28px' }}>
+        <div className="eyebrow" style={{ marginBottom: 6 }}>
+          Numéro en cours
+        </div>
+        <h2
+          className="serif"
+          style={{ fontSize: 22, lineHeight: 1.1, marginBottom: 14 }}
+        >
+          Vous livrez pour {nextHebdo?.label || 'un numéro à venir'}
+        </h2>
+
+        {!nextHebdo ? (
+          <div
+            className="text-center"
+            style={{ padding: '24px 0', color: 'var(--muted)', fontSize: 13 }}
+          >
+            Aucun numéro programmé. Contactez l'administrateur.
           </div>
-        </form>
+        ) : (
+          <>
+            <div
+              className="flex items-center gap-4"
+              style={{
+                padding: '18px 20px',
+                borderRadius: 'var(--r-md)',
+                border: '2px solid',
+                borderColor: hebdoConfirmed ? 'var(--ok)' : 'var(--rs-red)',
+                background: hebdoConfirmed ? 'var(--ok-tint)' : 'var(--rs-red-tint)',
+              }}
+            >
+              <Calendar
+                size={28}
+                style={{ color: hebdoConfirmed ? 'var(--ok)' : 'var(--rs-red)' }}
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--ink)' }}>
+                  {nextHebdo.label}
+                </div>
+                {nextHebdo.start_date && nextHebdo.end_date && (
+                  <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
+                    du {format(new Date(nextHebdo.start_date + 'T00:00:00'), 'd', { locale: fr })}{' '}
+                    au{' '}
+                    {format(new Date(nextHebdo.end_date + 'T00:00:00'), 'd MMMM yyyy', {
+                      locale: fr,
+                    })}
+                  </div>
+                )}
+              </div>
+              {hebdoConfirmed && (
+                <CheckCircle size={24} style={{ color: 'var(--ok)', flexShrink: 0 }} />
+              )}
+            </div>
+
+            {!hebdoConfirmed && (
+              <button
+                onClick={onConfirm}
+                disabled={preparingFolders}
+                className="rs-btn primary lg w-full mt-4"
+              >
+                {preparingFolders ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Préparation des dossiers…
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle size={16} />
+                    Confirmer ce numéro
+                  </>
+                )}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Paper type selector */}
+      {hebdoConfirmed && (
+        <div className="rs-card" style={{ padding: '24px 28px' }}>
+          <div className="eyebrow" style={{ marginBottom: 6 }}>
+            Étape 1
+          </div>
+          <h2
+            className="serif"
+            style={{ fontSize: 22, lineHeight: 1.1, marginBottom: 4 }}
+          >
+            Quel type de papier livrez-vous ?
+          </h2>
+          <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>
+            Choisissez le format. Le formulaire s'adaptera ensuite.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {paperTypes.map((pt) => {
+              const isSelected = selectedType?.id === pt.id;
+              return (
+                <button
+                  key={pt.id}
+                  onClick={() => onSelectType(pt)}
+                  className="text-left"
+                  style={{
+                    padding: '16px 18px',
+                    borderRadius: 'var(--r-lg)',
+                    border: isSelected ? '2px solid var(--rs-red)' : '1px solid var(--border-strong)',
+                    background: isSelected ? 'var(--rs-red-tint)' : 'var(--surface)',
+                    transition: 'all 0.15s var(--ease)',
+                    cursor: 'pointer',
+                    position: 'relative',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isSelected) {
+                      (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)';
+                      (e.currentTarget as HTMLElement).style.borderColor = 'var(--rs-red)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSelected) {
+                      (e.currentTarget as HTMLElement).style.background = 'var(--surface)';
+                      (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-strong)';
+                    }
+                  }}
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className="serif"
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 'var(--r-md)',
+                        background: isSelected ? 'var(--rs-red)' : 'var(--paper-2)',
+                        color: isSelected ? 'white' : 'var(--ink)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 18,
+                        fontStyle: 'italic',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {pt.name[0]}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, color: 'var(--ink)' }}>
+                        {pt.name}
+                      </div>
+                      <div
+                        className="mono"
+                        style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}
+                      >
+                        {pt.sign_limit.toLocaleString('fr-FR')} signes max
+                      </div>
+                    </div>
+                    {isSelected && (
+                      <Check size={18} style={{ color: 'var(--rs-red)', flexShrink: 0 }} />
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       )}
+    </div>
+  );
+}
+
+/* ============================================================
+   Step 2: Content
+   ============================================================ */
+
+interface StepContentViewProps {
+  selectedType: PaperType;
+  metadata: Record<string, any>;
+  updateMetadata: (key: string, value: any) => void;
+  isFieldMissing: (field: FieldConfig) => boolean;
+  imagePreviews: string[];
+  imageFiles: File[];
+  removeImage: (index: number) => void;
+  getRootProps: () => any;
+  getInputProps: () => any;
+  isDragActive: boolean;
+  isEditMode: boolean;
+  editDelivery: Delivery | null;
+  signCount: number;
+  signLimit: number;
+  signOverLimit: boolean;
+}
+
+function StepContentView(props: StepContentViewProps) {
+  const {
+    selectedType,
+    metadata,
+    updateMetadata,
+    isFieldMissing,
+    imagePreviews,
+    imageFiles,
+    removeImage,
+    getRootProps,
+    getInputProps,
+    isDragActive,
+    isEditMode,
+    editDelivery,
+  } = props;
+
+  return (
+    <div className="space-y-4">
+      <div className="rs-card" style={{ padding: '24px 28px' }}>
+        <div className="flex items-end justify-between mb-5 flex-wrap gap-2">
+          <div>
+            <div className="eyebrow">Format choisi</div>
+            <div
+              className="serif"
+              style={{ fontSize: 22, lineHeight: 1.1, marginTop: 2 }}
+            >
+              {selectedType.name}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {selectedType.fields_config?.map((field) => {
+            const missing = isFieldMissing(field);
+
+            if (field.type === 'images') {
+              const isOptionalViaAlternate = !!field.alternateKey;
+              return (
+                <div key={field.key}>
+                  <FieldLabel
+                    label={field.label}
+                    required={field.required && !isOptionalViaAlternate}
+                  />
+
+                  {imagePreviews.length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-3">
+                      {imagePreviews.map((preview, index) => (
+                        <div key={index} style={{ position: 'relative' }}>
+                          <img
+                            src={preview}
+                            alt={`Preview ${index + 1}`}
+                            style={{
+                              width: '100%',
+                              height: 96,
+                              objectFit: 'cover',
+                              borderRadius: 'var(--r-md)',
+                              border: '1px solid var(--border)',
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeImage(index)}
+                            style={{
+                              position: 'absolute',
+                              top: -8,
+                              right: -8,
+                              width: 24,
+                              height: 24,
+                              borderRadius: '50%',
+                              background: 'var(--ink)',
+                              color: 'var(--paper)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              border: 'none',
+                            }}
+                            aria-label="Supprimer"
+                          >
+                            <X size={12} />
+                          </button>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              marginTop: 6,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                          >
+                            {imageFiles[index]?.name}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div
+                    {...getRootProps()}
+                    style={{
+                      border: `2px dashed ${
+                        isDragActive
+                          ? 'var(--rs-red)'
+                          : missing
+                            ? 'var(--rs-red)'
+                            : 'var(--border-strong)'
+                      }`,
+                      background: isDragActive
+                        ? 'var(--rs-red-tint)'
+                        : missing
+                          ? 'var(--rs-red-tint)'
+                          : 'var(--surface-2)',
+                      borderRadius: 'var(--r-lg)',
+                      padding: '24px',
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s var(--ease)',
+                    }}
+                  >
+                    <input {...getInputProps()} />
+                    <div
+                      style={{
+                        width: 48,
+                        height: 48,
+                        margin: '0 auto 10px',
+                        borderRadius: '50%',
+                        background: isDragActive ? 'var(--rs-red)' : 'var(--paper-2)',
+                        color: isDragActive ? 'white' : 'var(--muted)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        animation: isDragActive ? 'drop-pulse 1.8s var(--ease) infinite' : 'none',
+                      }}
+                    >
+                      <Upload size={20} />
+                    </div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>
+                      {isDragActive
+                        ? 'Déposez vos photos ici'
+                        : 'Glissez vos photos ici'}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                      ou{' '}
+                      <span style={{ color: 'var(--rs-red)', textDecoration: 'underline' }}>
+                        cliquez pour les choisir
+                      </span>{' '}
+                      · {field.min ? `${field.min} photos minimum` : 'jusqu\'à 20 fichiers'}
+                    </div>
+                    {isEditMode && editDelivery?.image_filename && imageFiles.length === 0 && (
+                      <div style={{ fontSize: 11, color: 'var(--info)', marginTop: 8 }}>
+                        Images existantes : {editDelivery.image_filename}
+                      </div>
+                    )}
+                  </div>
+                  {missing && (
+                    <div style={{ fontSize: 11, color: 'var(--rs-red)', marginTop: 6 }}>
+                      {field.alternateKey
+                        ? 'Ajoutez des photos ou renseignez le lien Drive ci-dessus'
+                        : field.min
+                          ? `${field.min} photo(s) minimum requise(s)`
+                          : 'Au moins une photo est requise'}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            if (field.type === 'text') {
+              return (
+                <div key={field.key}>
+                  <FieldLabel label={field.label} required={field.required} />
+                  <input
+                    type="text"
+                    value={metadata[field.key] || ''}
+                    onChange={(e) => updateMetadata(field.key, e.target.value)}
+                    className={`rs-input${missing ? ' error' : ''}`}
+                  />
+                  {missing && <FieldError message="Ce champ est obligatoire" />}
+                </div>
+              );
+            }
+
+            if (field.type === 'url') {
+              const isOptionalViaAlternate = !!field.alternateKey;
+              return (
+                <div key={field.key}>
+                  <FieldLabel
+                    label={field.label}
+                    required={field.required && !isOptionalViaAlternate}
+                    hint={isOptionalViaAlternate ? '(ou ajoutez des photos)' : undefined}
+                  />
+                  <input
+                    type="url"
+                    value={metadata[field.key] || ''}
+                    onChange={(e) => updateMetadata(field.key, e.target.value)}
+                    placeholder="https://…"
+                    className={`rs-input${missing ? ' error' : ''}`}
+                  />
+                  {missing && (
+                    <FieldError message="Renseignez un lien ou ajoutez des photos ci-dessous" />
+                  )}
+                </div>
+              );
+            }
+
+            if (field.type === 'stars') {
+              const maxStars = field.max || 5;
+              const currentRating = parseFloat(metadata[field.key]) || 0;
+
+              const handleStarClick = (
+                starIndex: number,
+                e: React.MouseEvent<HTMLButtonElement>,
+              ) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const isLeftHalf = clickX < rect.width / 2;
+                const newRating = isLeftHalf ? starIndex - 0.5 : starIndex;
+                updateMetadata(field.key, String(newRating === currentRating ? 0 : newRating));
+              };
+
+              return (
+                <div key={field.key}>
+                  <FieldLabel label={field.label} required={field.required} />
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: maxStars }, (_, i) => i + 1).map((star) => {
+                      const isFull = currentRating >= star;
+                      const isHalf = !isFull && currentRating >= star - 0.5;
+                      return (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={(e) => handleStarClick(star, e)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: 2,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {isHalf ? (
+                            <span style={{ position: 'relative', width: 28, height: 28, display: 'inline-block' }}>
+                              <Star size={28} style={{ color: 'var(--border-strong)', position: 'absolute', inset: 0 }} />
+                              <span
+                                style={{
+                                  position: 'absolute',
+                                  inset: 0,
+                                  overflow: 'hidden',
+                                  width: '50%',
+                                }}
+                              >
+                                <Star size={28} style={{ color: 'var(--star)', fill: 'var(--star)' }} />
+                              </span>
+                            </span>
+                          ) : (
+                            <Star
+                              size={28}
+                              style={{
+                                color: isFull ? 'var(--star)' : 'var(--border-strong)',
+                                fill: isFull ? 'var(--star)' : 'transparent',
+                              }}
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
+                    {currentRating > 0 && (
+                      <span
+                        className="mono"
+                        style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 8 }}
+                      >
+                        {currentRating % 1 === 0 ? currentRating : currentRating.toFixed(1)}/{maxStars}
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                    Clic gauche de l'étoile = demi, clic droit = entière
+                  </p>
+                  {missing && <FieldError message="Veuillez sélectionner une note" />}
+                </div>
+              );
+            }
+
+            if (field.type === 'textarea') {
+              const isBodyField = field.key === 'corps';
+              const fieldValue = metadata[field.key] || '';
+              return (
+                <div key={field.key}>
+                  <div className="flex items-center justify-between mb-1">
+                    <FieldLabel label={field.label} required={field.required} inline />
+                    {isBodyField && (
+                      <span
+                        className="mono"
+                        style={{
+                          fontSize: 11,
+                          padding: '2px 8px',
+                          borderRadius: 'var(--r-pill)',
+                          background: props.signOverLimit
+                            ? 'var(--rs-red-tint)'
+                            : 'var(--paper-2)',
+                          color: props.signOverLimit ? 'var(--rs-red-deep)' : 'var(--muted)',
+                        }}
+                      >
+                        {fieldValue.length.toLocaleString('fr-FR')} /{' '}
+                        {selectedType.sign_limit.toLocaleString('fr-FR')} signes
+                      </span>
+                    )}
+                  </div>
+                  <textarea
+                    value={fieldValue}
+                    onChange={(e) => updateMetadata(field.key, e.target.value)}
+                    rows={isBodyField ? 14 : 4}
+                    className={`rs-textarea${missing ? ' error' : ''}`}
+                    style={
+                      isBodyField
+                        ? {
+                            fontFamily: 'Cambria, Georgia, serif',
+                            fontSize: 14,
+                            lineHeight: 1.7,
+                            resize: 'vertical',
+                          }
+                        : { resize: 'vertical' }
+                    }
+                  />
+                  {missing && <FieldError message="Ce champ est obligatoire" />}
+                  {isBodyField && props.signOverLimit && (
+                    <FieldError
+                      message={`Dépassement de ${(
+                        fieldValue.length - selectedType.sign_limit
+                      ).toLocaleString('fr-FR')} signes`}
+                    />
+                  )}
+                </div>
+              );
+            }
+
+            return null;
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Step 3: Correction
+   ============================================================ */
+
+interface StepCorrectionViewProps {
+  correction: CorrectionResult | null;
+  bodyCorrected: string;
+  onChangeBody: (v: string) => void;
+  signLimit: number;
+  signOverLimit: boolean;
+}
+
+function StepCorrectionView({
+  correction,
+  bodyCorrected,
+  onChangeBody,
+  signLimit,
+  signOverLimit,
+}: StepCorrectionViewProps) {
+  return (
+    <div className="space-y-4">
+      <div className="rs-card" style={{ padding: '24px 28px' }}>
+        <div className="eyebrow" style={{ marginBottom: 6 }}>
+          Étape 3
+        </div>
+        <h2 className="serif" style={{ fontSize: 22, lineHeight: 1.1, marginBottom: 4 }}>
+          Texte corrigé par l'IA
+        </h2>
+        <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 18 }}>
+          Modifiez librement le texte ci-dessous. L'IA n'a pas changé votre style.
+        </p>
+
+        {correction && correction.corrections.length > 0 && (
+          <div
+            style={{
+              padding: '14px 16px',
+              borderRadius: 'var(--r-md)',
+              background: 'var(--info-tint)',
+              border: '1px solid var(--info)',
+              borderColor: 'rgba(14,93,170,0.25)',
+              marginBottom: 16,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--info)',
+                marginBottom: 8,
+              }}
+            >
+              <Sparkles size={13} className="inline mr-1" />
+              {correction.corrections.length} correction
+              {correction.corrections.length > 1 ? 's' : ''} appliquée
+              {correction.corrections.length > 1 ? 's' : ''}
+            </div>
+            <div className="space-y-1.5" style={{ maxHeight: 180, overflowY: 'auto' }}>
+              {correction.corrections.map((c, i) => (
+                <div
+                  key={i}
+                  style={{ fontSize: 12, fontFamily: 'Cambria, Georgia, serif' }}
+                >
+                  <span
+                    style={{
+                      textDecoration: 'line-through',
+                      color: 'var(--rs-red-deep)',
+                    }}
+                  >
+                    {c.original}
+                  </span>
+                  <span className="mono" style={{ margin: '0 6px', color: 'var(--muted)' }}>
+                    →
+                  </span>
+                  <span style={{ color: 'var(--ok)', fontWeight: 600 }}>
+                    {c.corrected}
+                  </span>
+                  <span
+                    style={{ marginLeft: 8, fontSize: 11, color: 'var(--muted)' }}
+                  >
+                    ({c.type})
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between mb-2">
+          <FieldLabel label="Texte final (modifiable)" inline />
+          <span
+            className="mono"
+            style={{
+              fontSize: 11,
+              padding: '2px 8px',
+              borderRadius: 'var(--r-pill)',
+              background: signOverLimit ? 'var(--rs-red-tint)' : 'var(--paper-2)',
+              color: signOverLimit ? 'var(--rs-red-deep)' : 'var(--muted)',
+            }}
+          >
+            {bodyCorrected.length.toLocaleString('fr-FR')} /{' '}
+            {signLimit.toLocaleString('fr-FR')} signes
+          </span>
+        </div>
+        <textarea
+          value={bodyCorrected}
+          onChange={(e) => onChangeBody(e.target.value)}
+          rows={16}
+          className="rs-textarea"
+          style={{
+            fontFamily: 'Cambria, Georgia, serif',
+            fontSize: 14,
+            lineHeight: 1.7,
+            resize: 'vertical',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Step 4: Review
+   ============================================================ */
+
+interface StepReviewViewProps {
+  selectedType: PaperType;
+  nextHebdo: HebdoConfig | null;
+  metadata: Record<string, any>;
+  bodyCorrected: string;
+  imagePreviews: string[];
+  imageFiles: File[];
+  signCount: number;
+  signLimit: number;
+  signOverLimit: boolean;
+}
+
+function StepReviewView({
+  selectedType,
+  nextHebdo,
+  metadata,
+  bodyCorrected,
+  imagePreviews,
+  imageFiles,
+  signCount,
+  signLimit,
+  signOverLimit,
+}: StepReviewViewProps) {
+  return (
+    <div className="space-y-4">
+      <div className="rs-card" style={{ padding: '24px 28px' }}>
+        <div className="eyebrow" style={{ marginBottom: 6 }}>
+          Étape 4 — Récapitulatif
+        </div>
+        <h2 className="serif" style={{ fontSize: 22, lineHeight: 1.1, marginBottom: 16 }}>
+          Tout est-il bon ?
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Meta label="Format" value={selectedType.name} />
+          <Meta label="Numéro" value={nextHebdo?.label || '—'} />
+          {selectedType.fields_config?.map((field) => {
+            if (field.type === 'images') {
+              return (
+                <Meta
+                  key={field.key}
+                  label={field.label}
+                  value={`${imageFiles.length} photo${imageFiles.length > 1 ? 's' : ''}`}
+                />
+              );
+            }
+            const value =
+              field.key === 'corps' && bodyCorrected ? bodyCorrected : metadata[field.key];
+            if (!value) return null;
+            if (field.type === 'textarea') return null; // shown separately below
+            if (field.type === 'stars') {
+              const r = parseFloat(value) || 0;
+              return (
+                <Meta
+                  key={field.key}
+                  label={field.label}
+                  value={`${r % 1 === 0 ? r : r.toFixed(1)}/${field.max || 5} étoiles`}
+                />
+              );
+            }
+            return (
+              <Meta
+                key={field.key}
+                label={field.label}
+                value={String(value)}
+                tone={field.type === 'url' ? 'info' : undefined}
+              />
+            );
+          })}
+          <Meta
+            label="Signes"
+            value={`${signCount.toLocaleString('fr-FR')} / ${signLimit.toLocaleString('fr-FR')}`}
+            tone={signOverLimit ? 'red' : 'ok'}
+          />
+        </div>
+
+        {/* Body preview */}
+        {bodyCorrected && (
+          <div
+            style={{
+              marginTop: 18,
+              padding: '14px 16px',
+              background: 'var(--paper-2)',
+              borderRadius: 'var(--r-md)',
+            }}
+          >
+            <div className="eyebrow" style={{ marginBottom: 8 }}>
+              Aperçu du corps
+            </div>
+            <p
+              style={{
+                fontFamily: 'Cambria, Georgia, serif',
+                fontSize: 13,
+                lineHeight: 1.6,
+                whiteSpace: 'pre-wrap',
+                maxHeight: 200,
+                overflowY: 'auto',
+                color: 'var(--ink-2)',
+              }}
+            >
+              {bodyCorrected.substring(0, 800)}
+              {bodyCorrected.length > 800 ? '…' : ''}
+            </p>
+          </div>
+        )}
+
+        {imagePreviews.length > 0 && (
+          <div style={{ marginTop: 18 }}>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>
+              Visuels joints ({imagePreviews.length})
+            </div>
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+              {imagePreviews.map((preview, i) => (
+                <img
+                  key={i}
+                  src={preview}
+                  alt=""
+                  style={{
+                    width: '100%',
+                    height: 80,
+                    objectFit: 'cover',
+                    borderRadius: 'var(--r-md)',
+                    border: '1px solid var(--border)',
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Helper sidebar
+   ============================================================ */
+
+interface HelperPanelProps {
+  step: Step;
+  selectedType: PaperType | null;
+  nextHebdo: HebdoConfig | null;
+  hebdoConfirmed: boolean;
+  signCount: number;
+  signLimit: number;
+  signRatio: number;
+  signOverLimit: boolean;
+  correction: CorrectionResult | null;
+}
+
+function HelperPanel({
+  step,
+  selectedType,
+  nextHebdo,
+  hebdoConfirmed,
+  signCount,
+  signLimit,
+  signRatio,
+  signOverLimit,
+  correction,
+}: HelperPanelProps) {
+  return (
+    <div className="space-y-4">
+      {/* Issue badge — always visible */}
+      {nextHebdo && (
+        <div
+          className="rs-card thick"
+          style={{
+            padding: '16px 18px',
+            background: 'linear-gradient(135deg, var(--rs-red-tint), var(--surface))',
+            borderColor: 'var(--rs-red-tint)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+          }}
+        >
+          <div
+            style={{
+              width: 54,
+              height: 54,
+              borderRadius: 12,
+              background: 'var(--ink)',
+              color: 'var(--paper)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontFamily: 'var(--font-serif)',
+              fontStyle: 'italic',
+              fontSize: 24,
+              flexShrink: 0,
+            }}
+          >
+            {nextHebdo.numero}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="eyebrow" style={{ marginBottom: 2 }}>
+              Numéro
+            </div>
+            <div
+              className="serif"
+              style={{ fontSize: 18, lineHeight: 1.05, color: 'var(--ink)' }}
+            >
+              {nextHebdo.label}
+            </div>
+            {nextHebdo.start_date && nextHebdo.end_date && (
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                du{' '}
+                {format(new Date(nextHebdo.start_date + 'T00:00:00'), 'd', { locale: fr })}{' '}
+                au{' '}
+                {format(new Date(nextHebdo.end_date + 'T00:00:00'), 'd MMMM', { locale: fr })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {step === 'type' && (
+        <>
+          <div className="rs-card" style={{ padding: '20px 22px' }}>
+            <div className="eyebrow" style={{ marginBottom: 6 }}>
+              Confirmation
+            </div>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>
+              {hebdoConfirmed
+                ? 'Numéro confirmé'
+                : 'Confirmez le numéro pour commencer'}
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
+              Le dossier Dropbox sera prêt à recevoir votre papier dès que vous
+              aurez confirmé.
+            </p>
+            {hebdoConfirmed && (
+              <div
+                className="flex items-center gap-2"
+                style={{ color: 'var(--ok)', fontSize: 13, fontWeight: 600 }}
+              >
+                <Check size={16} />
+                <span>Dossier préparé</span>
+              </div>
+            )}
+          </div>
+          <Tip>
+            Le format détermine le nombre de signes et les champs à remplir. Pas
+            d'inquiétude — vous pouvez changer plus tard.
+          </Tip>
+        </>
+      )}
+
+      {step === 'content' && selectedType && signLimit > 0 && (
+        <>
+          {/* Sign counter */}
+          <div className="rs-card" style={{ padding: '20px 22px' }}>
+            <div className="eyebrow" style={{ marginBottom: 6 }}>
+              Compteur de signes
+            </div>
+            <div className="flex items-end justify-between mb-3">
+              <div className="serif" style={{ fontSize: 38, lineHeight: 1 }}>
+                {signCount.toLocaleString('fr-FR')}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                / {signLimit.toLocaleString('fr-FR')}
+              </div>
+            </div>
+            <div
+              style={{
+                height: 8,
+                borderRadius: 4,
+                background: 'var(--paper-2)',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  width: `${Math.min(100, signRatio * 100)}%`,
+                  height: '100%',
+                  background: signOverLimit
+                    ? 'var(--rs-red)'
+                    : 'linear-gradient(90deg, var(--ok), var(--rs-red))',
+                  borderRadius: 4,
+                  transition: 'width 0.2s var(--ease)',
+                }}
+              />
+            </div>
+            <div
+              className="flex items-center justify-between mt-2"
+              style={{ fontSize: 11 }}
+            >
+              <span style={{ color: 'var(--muted)' }}>
+                {signOverLimit
+                  ? 'Dépassement'
+                  : signRatio < 0.5
+                    ? 'Texte un peu court'
+                    : signRatio > 0.95
+                      ? 'Au taquet'
+                      : 'Bonne longueur'}
+              </span>
+              <span
+                className="mono"
+                style={{
+                  fontWeight: 600,
+                  color: signOverLimit ? 'var(--rs-red)' : 'var(--ok)',
+                }}
+              >
+                {Math.round(signRatio * 100)}%
+              </span>
+            </div>
+          </div>
+          <Tip label="Champs obligatoires">
+            Les champs marqués <strong style={{ color: 'var(--rs-red)' }}>•</strong>{' '}
+            doivent être remplis pour passer à l'étape suivante.
+          </Tip>
+        </>
+      )}
+
+      {step === 'correction' && (
+        <>
+          <div
+            className="rs-card"
+            style={{
+              padding: '20px 22px',
+              background: 'linear-gradient(135deg, var(--rs-red-tint), var(--surface))',
+            }}
+          >
+            <div
+              className="flex items-center gap-2 mb-2"
+              style={{ color: 'var(--rs-red)' }}
+            >
+              <Sparkles size={14} />
+              <span className="eyebrow" style={{ color: 'var(--rs-red)' }}>
+                Correction IA
+              </span>
+            </div>
+            <div className="serif" style={{ fontSize: 26, lineHeight: 1.1, marginBottom: 4 }}>
+              {correction?.corrections.length || 0} suggestion
+              {(correction?.corrections.length || 0) > 1 ? 's' : ''}
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--muted)' }}>
+              L'IA a relu votre texte. Vous restez maître du résultat final.
+            </p>
+          </div>
+          <Tip label="Vous restez maître">
+            L'IA ne touche jamais à votre style. Modifiez librement le texte
+            avant de continuer.
+          </Tip>
+        </>
+      )}
+
+      {step === 'review' && (
+        <>
+          <div
+            className="rs-card"
+            style={{
+              padding: '24px 26px',
+              background: 'var(--ink)',
+              color: 'var(--paper)',
+              borderColor: 'var(--ink)',
+            }}
+          >
+            <div
+              className="eyebrow"
+              style={{ color: 'rgba(245,240,230,0.5)', marginBottom: 6 }}
+            >
+              Vous êtes prêt·e.
+            </div>
+            <div
+              className="serif"
+              style={{ fontSize: 22, lineHeight: 1.15, marginBottom: 16 }}
+            >
+              Un dernier coup d'œil avant de livrer ?
+            </div>
+            <div className="space-y-3">
+              <ChecklistRow done text="Champs obligatoires" />
+              <ChecklistRow
+                done={!signOverLimit && signCount > 0}
+                text={`Compteur de signes (${signCount.toLocaleString('fr-FR')} / ${signLimit.toLocaleString('fr-FR')})`}
+              />
+              <ChecklistRow done text="Texte corrigé" />
+            </div>
+            <p
+              style={{
+                fontSize: 11,
+                color: 'rgba(245,240,230,0.55)',
+                marginTop: 16,
+                lineHeight: 1.5,
+              }}
+            >
+              On envoie le DOCX dans Dropbox et on prévient la rédaction.
+            </p>
+          </div>
+          <Tip label="Modifiable après envoi">
+            Tant que la rédaction n'a pas relu, vous pouvez revenir éditer ce
+            papier depuis votre tableau de bord.
+          </Tip>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   Success screen
+   ============================================================ */
+
+interface SuccessScreenProps {
+  title: string;
+  driveUrl: string;
+  isEditMode: boolean;
+}
+
+function SuccessScreen({ title, driveUrl, isEditMode }: SuccessScreenProps) {
+  return (
+    <div className="flex items-center justify-center" style={{ padding: '40px 16px' }}>
+      <div className="text-center" style={{ maxWidth: 720, width: '100%', position: 'relative' }}>
+        {/* confetti dots */}
+        {[...Array(12)].map((_, i) => (
+          <span
+            key={i}
+            aria-hidden
+            style={{
+              position: 'absolute',
+              width: [6, 8, 4, 10][i % 4],
+              height: [6, 8, 4, 10][i % 4],
+              background: ['var(--rs-red)', 'var(--ok)', 'var(--star)', 'var(--info)'][i % 4],
+              top: `${10 + (i * 7) % 80}%`,
+              left: `${(i * 13) % 100}%`,
+              borderRadius: i % 2 ? '50%' : 2,
+              animation: `float-up ${2 + (i % 5) * 0.3}s var(--ease) ${i * 0.15}s infinite`,
+              opacity: 0,
+            }}
+          />
+        ))}
+
+        <div
+          style={{
+            width: 96,
+            height: 96,
+            margin: '0 auto 24px',
+            borderRadius: '50%',
+            background: 'var(--ok-tint)',
+            border: '2px solid var(--ok)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--ok)',
+            position: 'relative',
+          }}
+        >
+          <Check size={42} />
+          <span
+            style={{
+              position: 'absolute',
+              inset: -6,
+              borderRadius: '50%',
+              border: '2px solid var(--ok)',
+              opacity: 0.4,
+            }}
+          />
+        </div>
+
+        <div className="eyebrow" style={{ color: 'var(--ok)' }}>
+          {isEditMode ? 'Papier modifié' : 'Papier livré'}
+        </div>
+        <h1
+          className="serif italic"
+          style={{ fontSize: 48, lineHeight: 1.05, margin: '10px 0 14px' }}
+        >
+          {isEditMode ? 'Modifications enregistrées !' : 'Bravo, c\'est envoyé !'}
+        </h1>
+        <p
+          className="mx-auto"
+          style={{
+            fontSize: 16,
+            color: 'var(--muted)',
+            maxWidth: 480,
+            marginBottom: 28,
+          }}
+        >
+          Votre papier{' '}
+          <strong style={{ color: 'var(--ink)' }}>{title}</strong>{' '}
+          {isEditMode
+            ? 'a bien été mis à jour dans Dropbox.'
+            : 'est dans Dropbox. La rédaction en chef vient de recevoir un email.'}
+        </p>
+
+        <div className="flex items-center justify-center gap-3 flex-wrap">
+          <Link to="/" className="rs-btn ghost lg">
+            <Home size={16} />
+            Retour à l'espace
+          </Link>
+          {driveUrl && (
+            <a
+              href={driveUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rs-btn ink lg"
+            >
+              <FileText size={16} />
+              Voir dans Dropbox
+            </a>
+          )}
+          <Link to="/livrer" className="rs-btn primary lg">
+            <Plus size={16} />
+            Livrer un autre papier
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Small helpers
+   ============================================================ */
+
+function FieldLabel({
+  label,
+  required,
+  hint,
+  inline,
+}: {
+  label: string;
+  required?: boolean;
+  hint?: string;
+  inline?: boolean;
+}) {
+  return (
+    <label
+      style={{
+        display: inline ? 'inline-block' : 'block',
+        fontSize: 12,
+        fontWeight: 500,
+        color: 'var(--ink-2)',
+        marginBottom: inline ? 0 : 6,
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+      }}
+    >
+      {label}
+      {required && <span style={{ color: 'var(--rs-red)', marginLeft: 4 }}>•</span>}
+      {hint && (
+        <span
+          style={{
+            color: 'var(--muted)',
+            textTransform: 'none',
+            letterSpacing: 0,
+            fontWeight: 400,
+            marginLeft: 6,
+          }}
+        >
+          {hint}
+        </span>
+      )}
+    </label>
+  );
+}
+
+function FieldError({ message }: { message: string }) {
+  return (
+    <p style={{ fontSize: 11, color: 'var(--rs-red)', marginTop: 4 }}>{message}</p>
+  );
+}
+
+interface MetaProps {
+  label: string;
+  value: string;
+  tone?: 'ok' | 'red' | 'info';
+}
+
+function Meta({ label, value, tone }: MetaProps) {
+  const color =
+    tone === 'ok'
+      ? 'var(--ok)'
+      : tone === 'red'
+        ? 'var(--rs-red)'
+        : tone === 'info'
+          ? 'var(--info)'
+          : 'var(--ink)';
+  return (
+    <div
+      style={{
+        padding: '12px 14px',
+        background: 'var(--paper-2)',
+        borderRadius: 'var(--r-md)',
+      }}
+    >
+      <div className="eyebrow" style={{ marginBottom: 4 }}>
+        {label}
+      </div>
+      <div
+        style={{
+          fontWeight: 600,
+          color,
+          fontSize: 13,
+          wordBreak: 'break-word',
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function Tip({
+  children,
+  label = 'Astuce',
+}: {
+  children: React.ReactNode;
+  label?: string;
+}) {
+  return (
+    <div className="rs-tip">
+      <span style={{ color: 'var(--rs-red)', flexShrink: 0 }}>
+        <Eye size={14} />
+      </span>
+      <span>
+        <strong>{label}.</strong> {children}
+      </span>
+    </div>
+  );
+}
+
+function ChecklistRow({ done, text }: { done: boolean; text: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        style={{
+          width: 22,
+          height: 22,
+          borderRadius: '50%',
+          background: done ? 'var(--rs-red)' : 'rgba(255,255,255,0.1)',
+          color: done ? 'white' : 'rgba(245,240,230,0.4)',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        {done ? <Check size={12} /> : '·'}
+      </span>
+      <span style={{ fontSize: 13 }}>{text}</span>
     </div>
   );
 }

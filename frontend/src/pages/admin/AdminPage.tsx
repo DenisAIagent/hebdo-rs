@@ -8,41 +8,82 @@ import { LogsTab } from './LogsTab.tsx';
 import { SettingsTab } from './SettingsTab.tsx';
 import { FileText, Hash, Users, Send, Bot, Activity, Settings } from 'lucide-react';
 
-type Tab = 'paper-types' | 'hebdo' | 'journalists' | 'deliveries' | 'prompt' | 'logs' | 'settings';
+type Tab =
+  | 'paper-types'
+  | 'hebdo'
+  | 'journalists'
+  | 'deliveries'
+  | 'prompt'
+  | 'logs'
+  | 'settings';
 
 export function AdminPage() {
   const [tab, setTab] = useState<Tab>('paper-types');
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
-    { key: 'paper-types', label: 'Types de papier', icon: <FileText size={18} /> },
-    { key: 'hebdo', label: 'Hebdo', icon: <Hash size={18} /> },
-    { key: 'journalists', label: 'Journalistes', icon: <Users size={18} /> },
-    { key: 'deliveries', label: 'Livraisons', icon: <Send size={18} /> },
-    { key: 'prompt', label: 'Prompt IA', icon: <Bot size={18} /> },
-    { key: 'logs', label: 'Logs', icon: <Activity size={18} /> },
-    { key: 'settings', label: 'Settings', icon: <Settings size={18} /> },
+    { key: 'hebdo', label: 'Hebdo', icon: <Hash size={16} /> },
+    { key: 'paper-types', label: 'Types de papier', icon: <FileText size={16} /> },
+    { key: 'journalists', label: 'Journalistes', icon: <Users size={16} /> },
+    { key: 'deliveries', label: 'Livraisons', icon: <Send size={16} /> },
+    { key: 'prompt', label: 'Prompt IA', icon: <Bot size={16} /> },
+    { key: 'logs', label: 'Logs', icon: <Activity size={16} /> },
+    { key: 'settings', label: 'Réglages', icon: <Settings size={16} /> },
   ];
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-rs-black mb-6">Administration</h1>
-
-      {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 mb-6">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors flex-1 justify-center ${
-              tab === t.key
-                ? 'bg-white text-rs-black shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
+      {/* Header */}
+      <div className="flex items-end justify-between mb-6 flex-wrap gap-4">
+        <div>
+          <div className="eyebrow">Administration</div>
+          <h1
+            className="serif"
+            style={{ fontSize: 40, lineHeight: 1.05, marginTop: 6 }}
           >
-            {t.icon}
-            <span className="hidden sm:inline">{t.label}</span>
-          </button>
-        ))}
+            Coulisses de la rédaction.
+          </h1>
+          <p style={{ marginTop: 6, color: 'var(--muted)' }}>
+            Hebdos, journalistes, prompt IA, intégrations — pilotez tout sans
+            redéployer.
+          </p>
+        </div>
+      </div>
+
+      {/* Editorial tabs (underline) */}
+      <div
+        style={{ borderBottom: '1px solid var(--border)', marginBottom: 24 }}
+        className="overflow-x-auto"
+      >
+        <div className="flex gap-1 min-w-max">
+          {tabs.map((t) => {
+            const active = tab === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className="flex items-center gap-2"
+                style={{
+                  padding: '10px 14px',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: active ? 'var(--ink)' : 'var(--muted)',
+                  borderBottom: active
+                    ? '2px solid var(--rs-red)'
+                    : '2px solid transparent',
+                  marginBottom: -1,
+                  background: 'none',
+                  border: 'none',
+                  borderBottomStyle: 'solid',
+                  cursor: 'pointer',
+                  transition: 'color 0.15s var(--ease)',
+                }}
+              >
+                {t.icon}
+                <span>{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Content */}

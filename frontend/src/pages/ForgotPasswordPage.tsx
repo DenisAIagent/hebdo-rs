@@ -34,63 +34,95 @@ export function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 px-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <img
-            src="/logo-rs-france.png"
-            alt="Rolling Stone France"
-            className="h-14 mx-auto mb-4"
-          />
-          <h1 className="text-2xl font-bold text-rs-black">Hebdo Delivery</h1>
+    <div
+      className="min-h-screen flex items-center justify-center px-4"
+      style={{ background: 'var(--paper)' }}
+    >
+      <div className="w-full" style={{ maxWidth: 420 }}>
+        <div className="flex flex-col items-center text-center mb-8">
+          <img src="/logo-rs-france.png" alt="Rolling Stone France" className="h-12 mb-3" />
+          <span className="serif italic" style={{ fontSize: 18, color: 'var(--ink)' }}>
+            Hebdo<span style={{ color: 'var(--rs-red)' }}>·</span>Delivery
+          </span>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+        <div className="rs-card thick" style={{ padding: 32 }}>
           {sent ? (
             <div className="text-center">
-              <CheckCircle size={48} className="mx-auto text-green-500 mb-4" />
-              <h2 className="text-lg font-semibold text-rs-black mb-2">Email envoyé</h2>
-              <p className="text-gray-500 text-sm mb-6">
-                Si un compte existe avec l'adresse <strong>{email}</strong>, vous recevrez un lien de réinitialisation.
-              </p>
-              <Link
-                to="/login"
-                className="inline-flex items-center gap-2 text-sm text-rs-red hover:underline"
+              <div
+                className="inline-flex items-center justify-center mb-4"
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: '50%',
+                  background: 'var(--ok-tint)',
+                  color: 'var(--ok)',
+                }}
               >
-                <ArrowLeft size={16} />
+                <CheckCircle size={32} />
+              </div>
+              <div className="eyebrow" style={{ color: 'var(--ok)', marginBottom: 6 }}>
+                Email envoyé
+              </div>
+              <h2 className="serif" style={{ fontSize: 24, lineHeight: 1.1, marginBottom: 10 }}>
+                Vérifiez votre boîte mail
+              </h2>
+              <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 24 }}>
+                Si un compte existe avec l'adresse <strong>{email}</strong>, vous recevrez un
+                lien de réinitialisation dans quelques instants.
+              </p>
+              <Link to="/login" className="rs-btn ghost">
+                <ArrowLeft size={14} />
                 Retour à la connexion
               </Link>
             </div>
           ) : (
             <>
-              <h2 className="text-lg font-semibold text-rs-black mb-2">Mot de passe oublié</h2>
-              <p className="text-gray-500 text-sm mb-6">
-                Entrez votre adresse email pour recevoir un lien de réinitialisation.
+              <div className="eyebrow" style={{ marginBottom: 6 }}>Mot de passe</div>
+              <h2 className="serif" style={{ fontSize: 28, lineHeight: 1.1, marginBottom: 6 }}>
+                Mot de passe oublié ?
+              </h2>
+              <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 24 }}>
+                Entrez votre adresse email — nous vous enverrons un lien de
+                réinitialisation.
               </p>
 
               {error && (
-                <div className="flex items-center gap-2 bg-red-50 text-red-700 text-sm px-4 py-3 rounded-lg mb-4">
+                <div className="rs-banner red flex items-center gap-2 mb-4">
                   <AlertCircle size={16} />
-                  {error}
+                  <span>{error}</span>
                 </div>
               )}
 
               <form onSubmit={handleSubmit}>
-                <div className="mb-4">
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                <div style={{ marginBottom: 16 }}>
+                  <label
+                    htmlFor="email"
+                    style={{
+                      display: 'block',
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: 'var(--ink-2)',
+                      marginBottom: 6,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                    }}
+                  >
                     Email
                   </label>
-                  <div className="relative">
-                    <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <div className="rs-input-wrap">
+                    <span className="lead">
+                      <Mail size={16} />
+                    </span>
                     <input
                       id="email"
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="journaliste@rollingstone.fr"
+                      placeholder="prenom@rollingstone.fr"
                       required
-                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rs-red focus:border-transparent text-sm"
+                      autoComplete="email"
+                      className="rs-input with-icon"
                     />
                   </div>
                 </div>
@@ -98,16 +130,17 @@ export function ForgotPasswordPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-rs-red hover:bg-rs-red-dark disabled:opacity-50 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors"
+                  className="rs-btn primary lg w-full"
                 >
-                  {loading ? 'Envoi...' : 'Envoyer le lien'}
+                  {loading ? 'Envoi…' : 'Envoyer le lien'}
                 </button>
               </form>
 
-              <div className="mt-4 text-center">
+              <div className="text-center" style={{ marginTop: 16 }}>
                 <Link
                   to="/login"
-                  className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-rs-red"
+                  className="inline-flex items-center gap-1"
+                  style={{ fontSize: 12, color: 'var(--muted)' }}
                 >
                   <ArrowLeft size={14} />
                   Retour à la connexion

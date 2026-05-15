@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore.ts';
-import { FileText, LayoutDashboard, Settings, LogOut, Send } from 'lucide-react';
+import { getNextHebdo } from '../services/api.ts';
+import type { HebdoConfig } from '../types/index.ts';
+import { LogOut, HelpCircle, Sparkles } from 'lucide-react';
 
 declare global {
   interface Window {
@@ -9,10 +11,16 @@ declare global {
   }
 }
 
-export function Layout({ children }: { children: React.ReactNode }) {
+interface LayoutProps {
+  children: React.ReactNode;
+  saveLabel?: string | null;
+}
+
+export function Layout({ children, saveLabel = null }: LayoutProps) {
   const { user, logout } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
+  const [hebdo, setHebdo] = useState<HebdoConfig | null>(null);
 
   const handleLogout = async () => {
     await logout();
@@ -27,51 +35,177 @@ export function Layout({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
-  const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
+  // Load current hebdo (for issue chip in topbar)
+  useEffect(() => {
+    let mounted = true;
+    getNextHebdo()
+      .then((h) => {
+        if (mounted) setHebdo(h);
+      })
+      .catch(() => {
+        // Silent fail — topbar chip is optional
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
-  const navLink = (path: string, label: string, icon: React.ReactNode) => (
-    <Link
-      to={path}
-      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-        isActive(path)
-          ? 'bg-rs-red text-white'
-          : 'text-gray-600 hover:bg-gray-100'
-      }`}
-    >
-      {icon}
-      {label}
-    </Link>
-  );
+  const isActive = (path: string) =>
+    path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
+
+  const initials = user?.full_name
+    ? user.full_name
+        .split(' ')
+        .map((s) => s[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
+    : 'U';
+
+  const handleReplayTour = () => {
+    if (user) {
+      localStorage.removeItem(`rs-onboarding-done-${user.id}`);
+    }
+    navigate('/onboarding');
+  };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <Link to="/" className="flex items-center gap-3">
-              <img src="/logo-rs-france.png" alt="Rolling Stone France" className="h-8" />
-              <span className="font-semibold text-rs-black hidden sm:block">Hebdo Delivery</span>
-            </Link>
+    <div className="min-h-screen flex flex-col" style={{ background: 'var(--paper)' }}>
+      {/* Editorial topbar */}
+      <header
+        className="sticky top-0 z-40"
+        style={{
+          background: 'var(--surface)',
+          borderBottom: '1px solid var(--border)',
+        }}
+      >
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between gap-4 h-16">
+            {/* Left — Logo + issue chip */}
+            <div className="flex items-center gap-5">
+              <Link to="/" className="flex items-center gap-3">
+                <img
+                  src="/logo-rs-france.png"
+                  alt="Rolling Stone France"
+                  className="h-8 w-auto"
+                />
+                <span
+                  className="hidden md:inline serif italic"
+                  style={{ fontSize: 18, color: 'var(--ink)', lineHeight: 1 }}
+                >
+                  Hebdo<span style={{ color: 'var(--rs-red)' }}>·</span>Delivery
+                </span>
+              </Link>
+              {hebdo && (
+                <span
+                  className="hidden lg:inline-flex items-center gap-2"
+                  style={{
+                    padding: '5px 10px 5px 8px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--r-pill)',
+                    fontSize: 12,
+                    color: 'var(--muted)',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      background: 'var(--rs-red)',
+                    }}
+                  />
+                  Numéro en cours · {hebdo.label}
+                </span>
+              )}
+            </div>
 
-            {/* Nav */}
+            {/* Center — Nav */}
             <nav className="flex items-center gap-1">
-              {navLink('/', 'Dashboard', <LayoutDashboard size={18} />)}
-              {navLink('/livrer', 'Livrer', <Send size={18} />)}
-              {user?.role === 'admin' && navLink('/admin', 'Admin', <Settings size={18} />)}
+              <NavLink to="/" active={isActive('/')}>
+                Mon espace
+              </NavLink>
+              <NavLink to="/livrer" active={isActive('/livrer')}>
+                Livrer un papier
+              </NavLink>
+              {user?.role === 'admin' && (
+                <NavLink to="/admin" active={isActive('/admin')}>
+                  Admin
+                </NavLink>
+              )}
             </nav>
 
-            {/* User */}
+            {/* Right — actions + user */}
             <div className="flex items-center gap-3">
-              <div className="hidden sm:block text-right">
-                <p className="text-sm font-medium text-gray-900">{user?.full_name}</p>
-                <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
+              {saveLabel && (
+                <span
+                  className="hidden md:inline-flex items-center gap-2"
+                  style={{ fontSize: 12, color: 'var(--muted)' }}
+                >
+                  <span
+                    className="pulse-dot"
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      background: 'var(--ok)',
+                    }}
+                  />
+                  {saveLabel}
+                </span>
+              )}
+              <button
+                onClick={handleReplayTour}
+                className="rs-btn ghost sm hidden sm:inline-flex"
+                title="Revoir la présentation"
+                style={{ padding: '6px 12px' }}
+              >
+                <Sparkles size={14} />
+                Revoir le tour
+              </button>
+              <button
+                className="rs-btn icon"
+                title="Aide"
+                onClick={() => window.open('https://rollingstone.fr', '_blank')}
+              >
+                <HelpCircle size={18} />
+              </button>
+              <div
+                className="flex items-center gap-2.5"
+                style={{
+                  padding: '4px 4px 4px 12px',
+                  borderRadius: 'var(--r-pill)',
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                <span
+                  className="hidden sm:inline"
+                  style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink)' }}
+                >
+                  {user?.full_name}
+                </span>
+                <span
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    background: 'var(--rs-red)',
+                    color: 'white',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  {initials}
+                </span>
               </div>
               <button
                 onClick={handleLogout}
-                className="p-2 text-gray-400 hover:text-rs-red transition-colors rounded-lg hover:bg-gray-100"
-                title="Deconnexion"
+                className="rs-btn icon"
+                title="Déconnexion"
               >
                 <LogOut size={18} />
               </button>
@@ -81,17 +215,66 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* Main */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+      <main
+        className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8"
+        style={{ background: 'var(--paper)' }}
+      >
         {children}
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-gray-200 py-4">
-        <div className="max-w-7xl mx-auto px-4 text-center text-xs text-gray-400">
-          <FileText size={14} className="inline mr-1" />
-          Rolling Stone France — Plateforme de livraison Hebdo
-        </div>
+      <footer
+        className="py-4 text-center"
+        style={{
+          borderTop: '1px solid var(--border)',
+          background: 'var(--surface)',
+        }}
+      >
+        <p style={{ fontSize: 11, color: 'var(--muted)' }}>
+          <span className="serif italic" style={{ color: 'var(--ink)' }}>
+            Rolling Stone France
+          </span>
+          {' '}·{' '}Plateforme de livraison Hebdo
+        </p>
       </footer>
     </div>
+  );
+}
+
+interface NavLinkProps {
+  to: string;
+  active: boolean;
+  children: React.ReactNode;
+}
+
+function NavLink({ to, active, children }: NavLinkProps) {
+  return (
+    <Link
+      to={to}
+      style={{
+        padding: '8px 14px',
+        borderRadius: 'var(--r-md)',
+        fontSize: 13,
+        fontWeight: 500,
+        color: active ? 'var(--paper)' : 'var(--muted)',
+        background: active ? 'var(--ink)' : 'transparent',
+        transition: 'all 0.15s var(--ease)',
+        textDecoration: 'none',
+      }}
+      onMouseEnter={(e) => {
+        if (!active) {
+          (e.currentTarget as HTMLElement).style.background = 'var(--paper-2)';
+          (e.currentTarget as HTMLElement).style.color = 'var(--ink)';
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!active) {
+          (e.currentTarget as HTMLElement).style.background = 'transparent';
+          (e.currentTarget as HTMLElement).style.color = 'var(--muted)';
+        }
+      }}
+    >
+      {children}
+    </Link>
   );
 }

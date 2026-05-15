@@ -13,17 +13,16 @@ export function ResetPasswordPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         setSessionReady(true);
       }
     });
 
-    // Also check if there's already a session (user might have refreshed)
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setSessionReady(true);
-      }
+      if (session) setSessionReady(true);
     });
 
     return () => subscription.unsubscribe();
@@ -37,23 +36,19 @@ export function ResetPasswordPage() {
       setError('Le mot de passe doit contenir au moins 6 caractères.');
       return;
     }
-
     if (password !== confirm) {
       setError('Les mots de passe ne correspondent pas.');
       return;
     }
 
     setLoading(true);
-
     try {
       const { error: updateError } = await supabase.auth.updateUser({ password });
-
       if (updateError) {
         setError(updateError.message);
         setLoading(false);
         return;
       }
-
       setSuccess(true);
       setTimeout(() => navigate('/'), 2000);
     } catch {
@@ -65,59 +60,97 @@ export function ResetPasswordPage() {
 
   if (!sessionReady) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 px-4">
+      <div
+        className="min-h-screen flex items-center justify-center px-4"
+        style={{ background: 'var(--paper)' }}
+      >
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-rs-red border-t-transparent mx-auto mb-3" />
-          <p className="text-sm text-gray-500">Vérification du lien...</p>
+          <div
+            className="animate-spin rounded-full h-8 w-8 border-2 mx-auto mb-3"
+            style={{ borderColor: 'var(--rs-red)', borderTopColor: 'transparent' }}
+          />
+          <p style={{ fontSize: 13, color: 'var(--muted)' }}>Vérification du lien…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 px-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <img
-            src="/logo-rs-france.png"
-            alt="Rolling Stone France"
-            className="h-14 mx-auto mb-4"
-          />
-          <h1 className="text-2xl font-bold text-rs-black">Hebdo Delivery</h1>
+    <div
+      className="min-h-screen flex items-center justify-center px-4"
+      style={{ background: 'var(--paper)' }}
+    >
+      <div className="w-full" style={{ maxWidth: 420 }}>
+        <div className="flex flex-col items-center text-center mb-8">
+          <img src="/logo-rs-france.png" alt="Rolling Stone France" className="h-12 mb-3" />
+          <span className="serif italic" style={{ fontSize: 18, color: 'var(--ink)' }}>
+            Hebdo<span style={{ color: 'var(--rs-red)' }}>·</span>Delivery
+          </span>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+        <div className="rs-card thick" style={{ padding: 32 }}>
           {success ? (
             <div className="text-center">
-              <CheckCircle size={48} className="mx-auto text-green-500 mb-4" />
-              <h2 className="text-lg font-semibold text-rs-black mb-2">Mot de passe modifié</h2>
-              <p className="text-gray-500 text-sm">
-                Redirection vers le tableau de bord...
+              <div
+                className="inline-flex items-center justify-center mb-4"
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: '50%',
+                  background: 'var(--ok-tint)',
+                  color: 'var(--ok)',
+                }}
+              >
+                <CheckCircle size={32} />
+              </div>
+              <div className="eyebrow" style={{ color: 'var(--ok)', marginBottom: 6 }}>
+                Mot de passe modifié
+              </div>
+              <h2 className="serif" style={{ fontSize: 24, lineHeight: 1.1, marginBottom: 10 }}>
+                C'est fait.
+              </h2>
+              <p style={{ fontSize: 13, color: 'var(--muted)' }}>
+                Redirection vers le tableau de bord…
               </p>
             </div>
           ) : (
             <>
-              <h2 className="text-lg font-semibold text-rs-black mb-2">Nouveau mot de passe</h2>
-              <p className="text-gray-500 text-sm mb-6">
-                Choisissez votre nouveau mot de passe.
+              <div className="eyebrow" style={{ marginBottom: 6 }}>Sécurité</div>
+              <h2 className="serif" style={{ fontSize: 28, lineHeight: 1.1, marginBottom: 6 }}>
+                Nouveau mot de passe
+              </h2>
+              <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 24 }}>
+                Choisissez un nouveau mot de passe sécurisé.
               </p>
 
               {error && (
-                <div className="flex items-center gap-2 bg-red-50 text-red-700 text-sm px-4 py-3 rounded-lg mb-4">
+                <div className="rs-banner red flex items-center gap-2 mb-4">
                   <AlertCircle size={16} />
-                  {error}
+                  <span>{error}</span>
                 </div>
               )}
 
               <form onSubmit={handleSubmit}>
                 <div className="space-y-4">
                   <div>
-                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label
+                      htmlFor="password"
+                      style={{
+                        display: 'block',
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: 'var(--ink-2)',
+                        marginBottom: 6,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.06em',
+                      }}
+                    >
                       Nouveau mot de passe
                     </label>
-                    <div className="relative">
-                      <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <div className="rs-input-wrap">
+                      <span className="lead">
+                        <Lock size={16} />
+                      </span>
                       <input
                         id="password"
                         type="password"
@@ -126,17 +159,31 @@ export function ResetPasswordPage() {
                         placeholder="Minimum 6 caractères"
                         required
                         minLength={6}
-                        className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rs-red focus:border-transparent text-sm"
+                        autoComplete="new-password"
+                        className="rs-input with-icon"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label htmlFor="confirm" className="block text-sm font-medium text-gray-700 mb-1">
-                      Confirmer le mot de passe
+                    <label
+                      htmlFor="confirm"
+                      style={{
+                        display: 'block',
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: 'var(--ink-2)',
+                        marginBottom: 6,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.06em',
+                      }}
+                    >
+                      Confirmer
                     </label>
-                    <div className="relative">
-                      <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <div className="rs-input-wrap">
+                      <span className="lead">
+                        <Lock size={16} />
+                      </span>
                       <input
                         id="confirm"
                         type="password"
@@ -145,7 +192,8 @@ export function ResetPasswordPage() {
                         placeholder="Retapez le mot de passe"
                         required
                         minLength={6}
-                        className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rs-red focus:border-transparent text-sm"
+                        autoComplete="new-password"
+                        className="rs-input with-icon"
                       />
                     </div>
                   </div>
@@ -154,9 +202,10 @@ export function ResetPasswordPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full mt-6 bg-rs-red hover:bg-rs-red-dark disabled:opacity-50 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors"
+                  className="rs-btn primary lg w-full"
+                  style={{ marginTop: 22 }}
                 >
-                  {loading ? 'Modification...' : 'Modifier le mot de passe'}
+                  {loading ? 'Modification…' : 'Modifier le mot de passe'}
                 </button>
               </form>
             </>

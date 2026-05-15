@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore.ts';
-import { Lock, Mail, AlertCircle } from 'lucide-react';
+import { Lock, Mail, AlertCircle, Eye, EyeOff, ArrowRight } from 'lucide-react';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const { login, loading } = useAuthStore();
   const navigate = useNavigate();
@@ -22,85 +23,268 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 px-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
+    <div
+      className="min-h-screen flex"
+      style={{ background: 'var(--paper)' }}
+    >
+      {/* Left — editorial pane */}
+      <aside
+        className="hidden lg:flex flex-col justify-between relative overflow-hidden"
+        style={{
+          width: '46%',
+          background: 'var(--ink)',
+          color: 'var(--paper)',
+          padding: '56px 56px 40px',
+        }}
+      >
+        {/* Real Rolling Stone France logo */}
+        <div className="flex items-center gap-3">
           <img
             src="/logo-rs-france.png"
             alt="Rolling Stone France"
-            className="h-14 mx-auto mb-4"
+            className="h-10 w-auto"
+            style={{ filter: 'invert(1) brightness(1.1)' }}
           />
-          <h1 className="text-2xl font-bold text-rs-black">Hebdo Delivery</h1>
-          <p className="text-gray-500 mt-1">Plateforme de livraison Rolling Stone France</p>
+          <span
+            className="serif italic"
+            style={{ fontSize: 18, color: 'var(--paper)', lineHeight: 1 }}
+          >
+            Hebdo<span style={{ color: 'var(--rs-red)' }}>·</span>Delivery
+          </span>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-          <h2 className="text-lg font-semibold text-rs-black mb-6">Connexion</h2>
+        <div>
+          <div className="eyebrow" style={{ color: 'var(--rs-red)' }}>
+            Plateforme rédactionnelle
+          </div>
+          <h1
+            className="serif"
+            style={{
+              fontSize: 64,
+              lineHeight: 0.95,
+              marginTop: 12,
+              marginBottom: 18,
+              fontStyle: 'italic',
+              color: 'var(--paper)',
+            }}
+          >
+            Livrez votre
+            <br />
+            papier en
+            <br />
+            quatre étapes.
+          </h1>
+          <p
+            style={{
+              fontSize: 15,
+              color: 'rgba(245,240,230,0.72)',
+              maxWidth: 360,
+              lineHeight: 1.55,
+            }}
+          >
+            Choisissez le type, rédigez, laissez l'IA corriger, envoyez. Tout est
+            sauvegardé automatiquement et déposé dans Dropbox.
+          </p>
+        </div>
+
+        <div
+          className="flex items-center gap-3"
+          style={{ color: 'rgba(245,240,230,0.55)', fontSize: 12 }}
+        >
+          <span>Rolling Stone France</span>
+          <span
+            style={{
+              width: 3,
+              height: 3,
+              background: 'currentColor',
+              borderRadius: '50%',
+            }}
+          />
+          <span>Hebdo Delivery — édition rédaction</span>
+        </div>
+
+        {/* magazine-strip decoration */}
+        <div
+          aria-hidden
+          style={{
+            position: 'absolute',
+            right: -60,
+            top: 60,
+            width: 240,
+            height: 340,
+            background:
+              'repeating-linear-gradient(0deg, rgba(225,29,46,0.08) 0 1px, transparent 1px 22px)',
+            borderLeft: '3px solid var(--rs-red)',
+            opacity: 0.6,
+            transform: 'rotate(4deg)',
+            pointerEvents: 'none',
+          }}
+        />
+      </aside>
+
+      {/* Right — form */}
+      <div
+        className="flex-1 flex items-center justify-center"
+        style={{ padding: 40 }}
+      >
+        <div className="w-full" style={{ maxWidth: 400 }}>
+          {/* Mobile-only brand */}
+          <div className="lg:hidden flex flex-col items-center text-center mb-8">
+            <img
+              src="/logo-rs-france.png"
+              alt="Rolling Stone France"
+              className="h-12 mb-3"
+            />
+            <span
+              className="serif italic"
+              style={{ fontSize: 18, color: 'var(--ink)' }}
+            >
+              Hebdo<span style={{ color: 'var(--rs-red)' }}>·</span>Delivery
+            </span>
+          </div>
+
+          <div className="eyebrow" style={{ marginBottom: 8 }}>
+            Connexion
+          </div>
+          <h2
+            className="serif"
+            style={{ fontSize: 34, lineHeight: 1.05, marginBottom: 8 }}
+          >
+            Bon retour parmi nous.
+          </h2>
+          <p
+            className="text-sm"
+            style={{ color: 'var(--muted)', marginBottom: 28 }}
+          >
+            Identifiez-vous avec l'email transmis par la rédaction en chef.
+          </p>
 
           {error && (
-            <div className="flex items-center gap-2 bg-red-50 text-red-700 text-sm px-4 py-3 rounded-lg mb-4">
+            <div
+              className="rs-banner red flex items-center gap-2 mb-4"
+              role="alert"
+            >
               <AlertCircle size={16} />
-              {error}
+              <span>{error}</span>
             </div>
           )}
 
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+          <form onSubmit={handleSubmit}>
+            <div style={{ marginBottom: 16 }}>
+              <label
+                htmlFor="email"
+                className="block"
+                style={{
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: 'var(--ink-2)',
+                  marginBottom: 6,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                }}
+              >
                 Email
               </label>
-              <div className="relative">
-                <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <div className="rs-input-wrap">
+                <span className="lead">
+                  <Mail size={16} />
+                </span>
                 <input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="journaliste@rollingstone.fr"
+                  placeholder="prenom@rollingstone.fr"
                   required
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rs-red focus:border-transparent text-sm"
+                  autoComplete="email"
+                  className="rs-input with-icon"
                 />
               </div>
             </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                Mot de passe
-              </label>
-              <div className="relative">
-                <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <div style={{ marginBottom: 8 }}>
+              <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
+                <label
+                  htmlFor="password"
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: 'var(--ink-2)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                  }}
+                >
+                  Mot de passe
+                </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-xs"
+                  style={{ color: 'var(--rs-red)' }}
+                >
+                  Oublié ?
+                </Link>
+              </div>
+              <div className="rs-input-wrap">
+                <span className="lead">
+                  <Lock size={16} />
+                </span>
                 <input
                   id="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Votre mot de passe"
                   required
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rs-red focus:border-transparent text-sm"
+                  autoComplete="current-password"
+                  className="rs-input with-icon"
+                  style={{ paddingRight: 40 }}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="trail"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Masquer' : 'Afficher'}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
             </div>
-          </div>
 
-          <div className="flex items-center justify-between mt-4">
-            <Link
-              to="/forgot-password"
-              className="text-sm text-gray-500 hover:text-rs-red transition-colors"
+            <button
+              type="submit"
+              disabled={loading}
+              className="rs-btn primary lg w-full"
+              style={{ marginTop: 16 }}
             >
-              Mot de passe oublié ?
-            </Link>
-          </div>
+              {loading ? 'Connexion…' : (
+                <>
+                  Se connecter <ArrowRight size={16} />
+                </>
+              )}
+            </button>
+          </form>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full mt-4 bg-rs-red hover:bg-rs-red-dark disabled:opacity-50 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors"
+          <div
+            className="flex items-center justify-center gap-2"
+            style={{ marginTop: 22, color: 'var(--muted)' }}
           >
-            {loading ? 'Connexion...' : 'Se connecter'}
-          </button>
-        </form>
+            <span style={{ width: 14, height: 1, background: 'var(--border-strong)' }} />
+            <span style={{ fontSize: 11 }}>Pas encore de compte&nbsp;?</span>
+            <span style={{ width: 14, height: 1, background: 'var(--border-strong)' }} />
+          </div>
+          <p
+            className="text-center"
+            style={{
+              fontSize: 12,
+              color: 'var(--muted)',
+              marginTop: 10,
+            }}
+          >
+            Contactez votre rédaction en chef pour recevoir vos identifiants.
+          </p>
+        </div>
       </div>
     </div>
   );
